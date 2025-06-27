@@ -4,13 +4,17 @@ const Layout = () => {
   const location = useLocation();
 
   const isActive = (path: string) => {
+    // Handle settings routes to keep the main settings link active
+    if (path.startsWith('/settings') && path !== '/settings') {
+      return location.pathname.startsWith('/settings');
+    }
     return location.pathname === path;
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 text-gray-900">
       {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <div className="sidebar">
         <div className="p-6 border-b border-gray-200">
           <h1 className="text-xl font-bold text-gray-900">AI Prompt Tool</h1>
           <p className="text-sm text-gray-500">v2.0</p>
@@ -19,46 +23,46 @@ const Layout = () => {
         <nav className="sidebar-nav">
           <Link
             to="/"
-            className={`nav-link ${isActive('/') ? 'nav-link-active' : 'nav-link-inactive'}`}
+            className={`sidebar-nav-item ${isActive('/') ? 'active' : ''}`}
           >
             <span>🏠</span>
-            Accueil
+            <span>Accueil</span>
           </Link>
           
-          <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <div className="px-3 pt-4 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
             Paramètres
           </div>
           
           <Link
             to="/settings/workspaces"
-            className={`nav-link ${isActive('/settings/workspaces') ? 'nav-link-active' : 'nav-link-inactive'}`}
+            className={`sidebar-nav-item ${isActive('/settings/workspaces') ? 'active' : ''}`}
           >
             <span>📁</span>
-            Espaces de travail
+            <span>Espaces de travail</span>
           </Link>
           
           <Link
             to="/settings/formats"
-            className={`nav-link ${isActive('/settings/formats') ? 'nav-link-active' : 'nav-link-inactive'}`}
+            className={`sidebar-nav-item ${isActive('/settings/formats') ? 'active' : ''}`}
           >
             <span>📝</span>
-            Formats
+            <span>Formats</span>
           </Link>
           
           <Link
             to="/settings/roles"
-            className={`nav-link ${isActive('/settings/roles') ? 'nav-link-active' : 'nav-link-inactive'}`}
+            className={`sidebar-nav-item ${isActive('/settings/roles') ? 'active' : ''}`}
           >
             <span>🎭</span>
-            Rôles
+            <span>Rôles</span>
           </Link>
           
           <Link
             to="/settings/ignore-patterns"
-            className={`nav-link ${isActive('/settings/ignore-patterns') ? 'nav-link-active' : 'nav-link-inactive'}`}
+            className={`sidebar-nav-item ${isActive('/settings/ignore-patterns') ? 'active' : ''}`}
           >
             <span>🚫</span>
-            Patterns d'exclusion
+            <span>Patterns d'exclusion</span>
           </Link>
         </nav>
       </div>

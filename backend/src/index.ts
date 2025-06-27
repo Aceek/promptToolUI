@@ -8,21 +8,13 @@ import { roleRoutes } from './routes/roles';
 import { settingRoutes } from './routes/settings';
 import { promptRoutes } from './routes/prompt';
 import { setupWebSocket } from './services/websocket';
+import { logger } from './services/logger';
 
 const prisma = new PrismaClient();
 
 async function buildServer() {
   const fastify = Fastify({
-    logger: process.env.NODE_ENV !== 'production' ? {
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'SYS:HH:MM:ss',
-          ignore: 'pid,hostname',
-        },
-      },
-    } : true,
+    logger: false, // Désactivation du logger par défaut de Fastify
   });
 
   // Register CORS
@@ -42,9 +34,12 @@ async function buildServer() {
   // Setup WebSocket handlers
   setupWebSocket(io, prisma);
 
-  // Make prisma and io available in request context
+  // Make prisma, io and logger available in request context
   fastify.decorate('prisma', prisma);
   fastify.decorate('io', io);
+  fastify.decorate('appLogger', logger);
+
+  // Pas de logging HTTP automatique - seulement les logs métier dans les routes
 
   // Register routes
   await fastify.register(workspaceRoutes, { prefix: '/api/workspaces' });
@@ -66,9 +61,9 @@ async function start() {
   try {
     const fastify = await buildServer();
     await fastify.listen({ port: 3001, host: '0.0.0.0' });
-    console.log('🚀 Backend server running on http://localhost:3001');
+    logger.success('Backend server running on http://localhost:3001');
   } catch (err) {
-    console.error(err);
+    logger.error(`Failed to start server: ${err}`);
     process.exit(1);
   }
 }
@@ -77,7 +72,7 @@ start();
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('Shutting down gracefully...');
+  logger.info('Shutting down gracefully...');
   await prisma.$disconnect();
   process.exit(0);
 });
@@ -87,5 +82,6 @@ declare module 'fastify' {
   interface FastifyInstance {
     prisma: PrismaClient;
     io: Server;
+    appLogger: typeof logger;
   }
 }

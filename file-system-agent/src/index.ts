@@ -3,24 +3,22 @@ import cors from '@fastify/cors';
 import { healthRoutes } from './routes/healthRoutes.js';
 import { fileRoutes } from './routes/fileRoutes.js';
 import { getConfig } from './config.js';
+import { logger } from './logger.js';
 
 async function start() {
   const config = getConfig();
   
   // Créer l'instance Fastify
   const fastify = Fastify({
-    logger: {
-      level: 'info',
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          colorize: true
-        }
-      }
-    }
+    logger: false // Désactivation du logger par défaut de Fastify
   });
 
   try {
+    // Décorer l'instance avec notre logger
+    fastify.decorate('appLogger', logger);
+
+    // Pas de logging HTTP automatique - seulement les logs métier dans les routes
+
     // Enregistrer le plugin CORS
     await fastify.register(cors, {
       origin: config.corsOrigins,
@@ -52,30 +50,36 @@ async function start() {
       host: config.host
     });
 
-    console.log(`🚀 Agent de système de fichiers démarré sur http://${config.host}:${config.port}`);
-    console.log(`📁 Prêt à servir les fichiers du système local`);
-    console.log(`🔧 CORS configuré pour: ${config.corsOrigins.join(', ')}`);
+    logger.success(`Agent de système de fichiers démarré sur http://${config.host}:${config.port}`);
+    logger.info(`Prêt à servir les fichiers du système local`);
+    logger.info(`CORS configuré pour: ${config.corsOrigins.join(', ')}`);
 
   } catch (error) {
-    fastify.log.error(error);
-    console.error('❌ Erreur lors du démarrage de l\'agent:', error);
+    logger.error(`Erreur lors du démarrage de l'agent: ${error}`);
     process.exit(1);
   }
 }
 
 // Gestion propre de l'arrêt
 process.on('SIGINT', () => {
-  console.log('\n🛑 Arrêt de l\'agent...');
+  logger.info('Arrêt de l\'agent...');
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  console.log('\n🛑 Arrêt de l\'agent...');
+  logger.info('Arrêt de l\'agent...');
   process.exit(0);
 });
 
 // Démarrer l'agent
 start().catch((error) => {
-  console.error('❌ Erreur fatale:', error);
+  logger.error(`Erreur fatale: ${error}`);
   process.exit(1);
 });
+
+// Type declarations for Fastify decorators
+declare module 'fastify' {
+  interface FastifyInstance {
+    appLogger: typeof logger;
+  }
+}

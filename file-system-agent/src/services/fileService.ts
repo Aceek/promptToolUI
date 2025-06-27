@@ -2,6 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { minimatch } from 'minimatch';
 import { FileNode, FileContent } from '../types.js';
+import { logger } from '../logger.js';
 
 export class FileService {
   /**
@@ -39,7 +40,7 @@ export class FileService {
           });
         }
       } catch (error) {
-        console.warn(`Avertissement: Impossible de lire le fichier ${relativePath}: ${error}`);
+        logger.warn(`Unable to read file ${relativePath}: ${error}`);
         // On continue avec les autres fichiers même si un fichier échoue
       }
     }

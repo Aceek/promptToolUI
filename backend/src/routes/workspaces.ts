@@ -18,7 +18,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
       });
       return workspaces;
     } catch (error) {
-      fastify.log.error(error);
+      fastify.appLogger.error(`Failed to fetch workspaces: ${error}`);
       return reply.status(500).send({ error: 'Failed to fetch workspaces' });
     }
   });
@@ -42,7 +42,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
 
       return workspace;
     } catch (error) {
-      fastify.log.error(error);
+      fastify.appLogger.error(`Failed to fetch workspace ${request.params.id}: ${error}`);
       return reply.status(500).send({ error: 'Failed to fetch workspace' });
     }
   });
@@ -82,9 +82,14 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
         }
       });
 
+      fastify.appLogger.business({
+        action: 'Workspace Created',
+        details: `"${name}" at ${path}`,
+        resourceId: workspace.id
+      });
       return workspace;
     } catch (error) {
-      fastify.log.error(error);
+      fastify.appLogger.error(`Failed to create workspace "${request.body.name}": ${error}`);
       return reply.status(500).send({ error: 'Failed to create workspace' });
     }
   });
@@ -115,9 +120,13 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
         }
       });
 
+      fastify.appLogger.business({
+        action: 'Workspace Updated',
+        resourceId: request.params.id
+      });
       return workspace;
     } catch (error) {
-      fastify.log.error(error);
+      fastify.appLogger.error(`Failed to update workspace ${request.params.id}: ${error}`);
       return reply.status(500).send({ error: 'Failed to update workspace' });
     }
   });
@@ -131,9 +140,13 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
         where: { id }
       });
 
+      fastify.appLogger.business({
+        action: 'Workspace Deleted',
+        resourceId: request.params.id
+      });
       return reply.status(204).send();
     } catch (error) {
-      fastify.log.error(error);
+      fastify.appLogger.error(`Failed to delete workspace ${request.params.id}: ${error}`);
       return reply.status(500).send({ error: 'Failed to delete workspace' });
     }
   });

@@ -1,4 +1,5 @@
 import { FileNode } from './structure.js';
+import { logger } from './logger.js';
 
 export interface FileContent {
   path: string;
@@ -29,7 +30,7 @@ export class AgentService {
       }
       return false;
     } catch (error) {
-      console.warn('Agent non disponible:', error);
+      logger.warn(`Agent not available: ${error}`);
       return false;
     }
   }
@@ -47,6 +48,7 @@ export class AgentService {
         params.append('ignorePatterns', ignorePatterns.join(','));
       }
 
+      logger.info(`Requesting structure from agent for path: ${path}`);
       const response = await fetch(`${this.agentUrl}/structure?${params}`);
       
       if (!response.ok) {
@@ -54,8 +56,11 @@ export class AgentService {
         throw new Error(`Erreur agent (${response.status}): ${errorText}`);
       }
 
-      return await response.json() as FileNode[];
+      const result = await response.json() as FileNode[];
+      logger.success(`Structure received from agent for path: ${path}`);
+      return result;
     } catch (error) {
+      logger.error(`Failed to communicate with agent for structure: ${error}`);
       throw new Error(`Échec de la communication avec l'agent: ${error}`);
     }
   }
@@ -70,6 +75,7 @@ export class AgentService {
         files
       };
 
+      logger.info(`Requesting file content from agent: ${files.length} files from ${basePath}`);
       const response = await fetch(`${this.agentUrl}/files/content`, {
         method: 'POST',
         headers: {
@@ -83,8 +89,11 @@ export class AgentService {
         throw new Error(`Erreur agent (${response.status}): ${errorText}`);
       }
 
-      return await response.json() as FileContent[];
+      const result = await response.json() as FileContent[];
+      logger.success(`File content received from agent: ${result.length} files processed`);
+      return result;
     } catch (error) {
+      logger.error(`Failed to read files via agent: ${error}`);
       throw new Error(`Échec de la lecture des fichiers via l'agent: ${error}`);
     }
   }

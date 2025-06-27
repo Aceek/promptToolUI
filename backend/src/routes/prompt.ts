@@ -30,9 +30,14 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
 
       const structure = await generateStructure(workspace.path, allIgnorePatterns);
       
+      fastify.appLogger.business({
+        action: 'Structure Generated',
+        details: `for workspace "${workspace.name}"`,
+        resourceId: workspace.id
+      });
       return structure;
     } catch (error) {
-      fastify.log.error(error);
+      fastify.appLogger.error(`Failed to generate structure for workspace ${request.params.id}: ${error}`);
       return reply.status(500).send({ error: 'Failed to generate structure' });
     }
   });
@@ -98,6 +103,12 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
         }
       });
 
+      fastify.appLogger.business({
+        action: 'Prompt Generation Started',
+        details: `for workspace "${workspace.name}" with ${selectedFilePaths.length} files`,
+        resourceId: workspace.id
+      });
+      
       // Generate the prompt
       const prompt = await generatePrompt({
         workspace,
@@ -108,9 +119,14 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
         ignorePatterns: allIgnorePatterns
       });
 
+      fastify.appLogger.business({
+        action: 'Prompt Generated',
+        details: `successfully for workspace "${workspace.name}"`,
+        resourceId: workspace.id
+      });
       return { prompt };
     } catch (error) {
-      fastify.log.error(error);
+      fastify.appLogger.error(`Failed to generate prompt for workspace ${request.body.workspaceId}: ${error}`);
       return reply.status(500).send({ error: 'Failed to generate prompt' });
     }
   });

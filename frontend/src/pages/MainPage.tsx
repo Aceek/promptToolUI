@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
-// Importez le service API
-import { promptApi } from '../services/api';
+import { promptApi, workspaceApi } from '../services/api';
+import { FileTree } from '../components';
 
 const MainPage = () => {
-  const [finalRequest, setFinalRequest] = useState('');
-  const [generatedPrompt, setGeneratedPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLoadingStructure, setIsLoadingStructure] = useState(false);
 
   const {
     workspaces,
@@ -16,12 +15,21 @@ const MainPage = () => {
     selectedFiles,
     selectedFormat,
     selectedRole,
+    finalRequest,
+    generatedPrompt,
+    fileStructure,
     setSelectedWorkspace,
     setSelectedFormat,
     setSelectedRole,
+    setFinalRequest,
+    setGeneratedPrompt,
+    setFileStructure,
+    setSelectedFiles,
     fetchWorkspaces,
     fetchFormats,
-    fetchRoles
+    fetchRoles,
+    getSelectedFormat,
+    getSelectedRole
   } = useAppStore();
 
   useEffect(() => {
@@ -30,20 +38,57 @@ const MainPage = () => {
     fetchRoles();
   }, [fetchWorkspaces, fetchFormats, fetchRoles]);
 
+  // Charger la structure de fichiers quand un workspace est sélectionné
+  useEffect(() => {
+    const loadFileStructure = async () => {
+      if (!selectedWorkspace) {
+        setFileStructure([]);
+        return;
+      }
+
+      setIsLoadingStructure(true);
+      try {
+        const structure = await workspaceApi.getStructure(selectedWorkspace.id);
+        setFileStructure(structure);
+      } catch (error) {
+        console.error('Erreur lors du chargement de la structure:', error);
+        setFileStructure([]);
+      } finally {
+        setIsLoadingStructure(false);
+      }
+    };
+
+    loadFileStructure();
+  }, [selectedWorkspace, setFileStructure]);
+
   const handleGeneratePrompt = async () => {
-    if (!selectedWorkspace || !selectedFormat || !selectedRole) {
+    const currentFormat = getSelectedFormat();
+    const currentRole = getSelectedRole();
+    
+    if (!selectedWorkspace || !currentFormat || !currentRole) {
       alert('Veuillez sélectionner un espace de travail, un format et un rôle');
+      return;
+    }
+
+    if (selectedFiles.length === 0) {
+      alert('Veuillez sélectionner au moins un fichier');
       return;
     }
 
     setIsGenerating(true);
     try {
+      // Sauvegarder les sélections dans le workspace
+      await workspaceApi.update(selectedWorkspace.id, {
+        selectedFiles,
+        lastFinalRequest: finalRequest,
+      });
+
       const data = await promptApi.generate({
         workspaceId: selectedWorkspace.id,
         finalRequest,
         selectedFilePaths: selectedFiles,
-        formatId: selectedFormat.id,
-        roleId: selectedRole.id,
+        formatId: currentFormat.id,
+        roleId: currentRole.id,
       });
       setGeneratedPrompt(data.prompt);
     } catch (error) {
@@ -57,6 +102,19 @@ const MainPage = () => {
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedPrompt);
     alert('Prompt copié dans le presse-papiers !');
+  };
+
+  const handleWorkspaceChange = (workspaceId: string) => {
+    const workspace = workspaces.find(w => w.id === workspaceId);
+    setSelectedWorkspace(workspace || null);
+  };
+
+  const handleFormatChange = (formatId: string) => {
+    setSelectedFormat(formatId || null);
+  };
+
+  const handleRoleChange = (roleId: string) => {
+    setSelectedRole(roleId || null);
   };
 
   return (
@@ -77,10 +135,7 @@ const MainPage = () => {
               <select
                 className="select"
                 value={selectedWorkspace?.id || ''}
-                onChange={(e) => {
-                  const workspace = workspaces.find(w => w.id === e.target.value);
-                  setSelectedWorkspace(workspace || null);
-                }}
+                onChange={(e) => handleWorkspaceChange(e.target.value)}
               >
                 <option value="">Sélectionner un espace de travail</option>
                 {workspaces.map((workspace) => (
@@ -98,9 +153,7 @@ const MainPage = () => {
               <select
                 className="select"
                 value={selectedFormat?.id || ''}
-                onChange={(e) => {
-                  setSelectedFormat(e.target.value || null);
-                }}
+                onChange={(e) => handleFormatChange(e.target.value)}
               >
                 <option value="">Sélectionner un format</option>
                 {formats.map((format) => (
@@ -118,9 +171,7 @@ const MainPage = () => {
               <select
                 className="select"
                 value={selectedRole?.id || ''}
-                onChange={(e) => {
-                  setSelectedRole(e.target.value || null);
-                }}
+                onChange={(e) => handleRoleChange(e.target.value)}
               >
                 <option value="">Sélectionner un rôle</option>
                 {roles.map((role) => (
@@ -146,12 +197,45 @@ const MainPage = () => {
             />
           </div>
 
+          {/* Sélection de fichiers */}
+          {selectedWorkspace && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Fichiers à inclure ({selectedFiles.length} sélectionné{selectedFiles.length !== 1 ? 's' : ''})
+              </label>
+              {isLoadingStructure ? (
+                <div className="flex items-center justify-center py-8 text-gray-500">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
+                  Chargement de la structure...
+                </div>
+              ) : fileStructure.length > 0 ? (
+                <div className="border border-gray-200 rounded-md p-4 max-h-96 overflow-auto bg-gray-50">
+                  <FileTree
+                    nodes={fileStructure}
+                    selectedFiles={selectedFiles}
+                    onSelectionChange={setSelectedFiles}
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500 border border-gray-200 rounded-md">
+                  Aucun fichier trouvé dans ce workspace
+                </div>
+              )}
+            </div>
+          )}
+
+          {!selectedWorkspace && (
+            <div className="text-center py-8 text-gray-500 border border-gray-200 rounded-md">
+              Sélectionnez un espace de travail pour voir les fichiers
+            </div>
+          )}
+
           {/* Bouton de génération */}
           <div className="flex justify-center">
             <button
               className="btn-primary"
               onClick={handleGeneratePrompt}
-              disabled={isGenerating || !selectedWorkspace || !selectedFormat || !selectedRole}
+              disabled={isGenerating || !selectedWorkspace || !selectedFormat || !selectedRole || selectedFiles.length === 0}
             >
               {isGenerating ? 'Génération...' : 'Générer le Prompt'}
             </button>

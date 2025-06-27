@@ -117,13 +117,14 @@ export const useAppStore = create<AppState>()(
       
       // Actions
       setActiveWorkspace: (workspace) => {
-        set({ 
+        set({
           activeWorkspace: workspace,
           activeWorkspaceId: workspace?.id || null,
           selectedFiles: workspace?.selectedFiles || [],
           finalRequest: workspace?.lastFinalRequest || '',
           selectedFormatId: workspace?.defaultFormatId || null,
-          selectedRoleId: workspace?.defaultRoleId || null
+          selectedRoleId: workspace?.defaultRoleId || null,
+          selectedWorkspace: workspace
         });
       },
       
@@ -133,17 +134,33 @@ export const useAppStore = create<AppState>()(
       
       setFinalRequest: (request) => set({ finalRequest: request }),
       
-      setSelectedFormat: (formatId) => set({ selectedFormatId: formatId }),
+      setSelectedFormat: (formatId) => {
+        const { formats } = get();
+        const format = formats.find(f => f.id === formatId) || null;
+        set({ selectedFormatId: formatId, selectedFormat: format });
+      },
       
-      setSelectedRole: (roleId) => set({ selectedRoleId: roleId }),
+      setSelectedRole: (roleId) => {
+        const { roles } = get();
+        const role = roles.find(r => r.id === roleId) || null;
+        set({ selectedRoleId: roleId, selectedRole: role });
+      },
       
       setGeneratedPrompt: (prompt) => set({ generatedPrompt: prompt }),
       
       setWorkspaces: (workspaces) => set({ workspaces }),
       
-      setFormats: (formats) => set({ formats }),
+      setFormats: (formats) => {
+        const { selectedFormatId } = get();
+        const selectedFormat = formats.find(f => f.id === selectedFormatId) || null;
+        set({ formats, selectedFormat });
+      },
       
-      setRoles: (roles) => set({ roles }),
+      setRoles: (roles) => {
+        const { selectedRoleId } = get();
+        const selectedRole = roles.find(r => r.id === selectedRoleId) || null;
+        set({ roles, selectedRole });
+      },
       
       setLoading: (loading) => set({ isLoading: loading }),
       
@@ -196,20 +213,20 @@ export const useAppStore = create<AppState>()(
       },
       
       // Computed aliases for compatibility
-      get selectedWorkspace() {
-        return get().activeWorkspace;
-      },
-      
-      get selectedFormat() {
-        return get().getSelectedFormat();
-      },
-      
-      get selectedRole() {
-        return get().getSelectedRole();
-      },
+      selectedWorkspace: null as Workspace | null,
+      selectedFormat: null as Format | null,
+      selectedRole: null as Role | null,
       
       setSelectedWorkspace: (workspace) => {
-        get().setActiveWorkspace(workspace);
+        set({
+          activeWorkspace: workspace,
+          activeWorkspaceId: workspace?.id || null,
+          selectedFiles: workspace?.selectedFiles || [],
+          finalRequest: workspace?.lastFinalRequest || '',
+          selectedFormatId: workspace?.defaultFormatId || null,
+          selectedRoleId: workspace?.defaultRoleId || null,
+          selectedWorkspace: workspace
+        });
       },
     }),
     {

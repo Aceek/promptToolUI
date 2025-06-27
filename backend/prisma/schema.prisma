@@ -1,0 +1,60 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// A Workspace represents a project directory the user is working on.
+model Workspace {
+  id                String   @id @default(cuid())
+  name              String
+  path              String   @unique // Absolute path to the project directory on the server
+  selectedFiles     String[] // List of relative paths of files selected for the prompt
+  lastFinalRequest  String?  @db.Text
+  ignorePatterns    String[] // Workspace-specific ignore patterns
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  defaultFormatId   String?
+  defaultFormat     Format?  @relation("DefaultFormat", fields: [defaultFormatId], references: [id])
+  defaultRoleId     String?
+  defaultRole       Role?    @relation("DefaultRole", fields: [defaultRoleId], references: [id])
+}
+
+// A Format defines how the LLM should structure its response.
+model Format {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  instructions String   @db.Text
+  examples     String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  defaultForWorkspaces Workspace[] @relation("DefaultFormat")
+}
+
+// A Role defines the persona the LLM should adopt.
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  defaultForWorkspaces Workspace[] @relation("DefaultRole")
+}
+
+// Global settings for the application.
+model Setting {
+  id                  Int      @id @default(1) // Singleton table
+  globalIgnorePatterns String[]
+}

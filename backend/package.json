@@ -1,0 +1,42 @@
+{
+  "name": "ai-prompt-tool-backend",
+  "version": "2.0.0",
+  "description": "Backend for AI Prompt Tool v2",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx src/seed.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^8.4.0",
+    "@fastify/static": "^6.12.0",
+    "@prisma/client": "^5.7.1",
+    "chokidar": "^3.5.3",
+    "fastify": "^4.24.3",
+    "minimatch": "^9.0.3",
+    "nunjucks": "^3.2.4",
+    "socket.io": "^4.7.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.4",
+    "@types/nunjucks": "^3.2.6",
+    "prisma": "^5.7.1",
+    "tsx": "^4.6.2",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "ai",
+    "prompt",
+    "tool",
+    "typescript",
+    "fastify"
+  ],
+  "author": "AI Prompt Tool Team",
+  "license": "MIT"
+}

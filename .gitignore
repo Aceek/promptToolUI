@@ -1,0 +1,46 @@
+# Ignorer les environnements virtuels Python
+venv/
+*.pyc
+__pycache__/
+
+# Ignorer les fichiers et dossiers de build
+dist/
+build/
+out/
+coverage/
+
+# Ignorer les caches et fichiers temporaires
+.cache/
+*.log
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+
+# Ignorer le répertoire d'output généré par les scripts, sauf .gitkeep
+output/*
+!output/.gitkeep
+
+# Ignorer les répertoires courants dans les projets JS/Node
+node_modules/
+
+# Ignorer les fichiers de configuration sensibles
+.env
+.env.*
+
+# Ignorer le répertoire data/ s'il existe encore
+data/
+
+# Ignorer d'autres répertoires internes
+.github/
+.idea/
+.vscode/
+.husky/
+
+# Ignorer les fichiers de configuration perso
+perso/
+
+# Ignorer les fichiers de diff
+*.rej
+*.orig

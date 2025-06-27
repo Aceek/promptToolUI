@@ -1,16 +1,17 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import { healthRoutes } from './routes/healthRoutes.js';
-import { fileRoutes } from './routes/fileRoutes.js';
-import { getConfig } from './config.js';
-import { logger } from './logger.js';
+import { healthRoutes } from './routes/healthRoutes';
+import { fileRoutes } from './routes/fileRoutes';
+import { getConfig } from './config';
+import { logger } from './logger';
 
 async function start() {
   const config = getConfig();
   
-  // Créer l'instance Fastify
+  // Créer l'instance Fastify avec logging complètement désactivé
   const fastify = Fastify({
-    logger: false // Désactivation du logger par défaut de Fastify
+    logger: false,
+    disableRequestLogging: true
   });
 
   try {

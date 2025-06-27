@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
-import { FileService } from '../services/fileService.js';
-import { FileContentRequest } from '../types.js';
+import { FileService } from '../services/fileService';
+import { FileContentRequest } from '../types';
 
 export const fileRoutes: FastifyPluginAsync = async (fastify) => {
   const fileService = new FileService();

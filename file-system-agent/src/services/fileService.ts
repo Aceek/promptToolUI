@@ -1,8 +1,8 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { minimatch } from 'minimatch';
-import { FileNode, FileContent } from '../types.js';
-import { logger } from '../logger.js';
+import { FileNode, FileContent } from '../types';
+import { logger } from '../logger';
 
 export class FileService {
   /**

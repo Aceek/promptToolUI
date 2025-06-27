@@ -55,9 +55,13 @@ async function start() {
       host: config.host
     });
 
+    // Stocker l'instance pour la gestion de l'arrêt
+    fastifyInstance = fastify;
+
     logger.success(`Agent de système de fichiers démarré sur http://${config.host}:${config.port}`);
     logger.info(`Prêt à servir les fichiers du système local`);
     logger.info(`CORS configuré pour: ${config.corsOrigins.join(', ')}`);
+    logger.info(`[DEBUG] Instance Fastify stockée pour arrêt gracieux`);
 
   } catch (error) {
     logger.error(`Erreur lors du démarrage de l'agent: ${error}`);
@@ -65,15 +69,48 @@ async function start() {
   }
 }
 
-// Gestion propre de l'arrêt
-process.on('SIGINT', () => {
-  logger.info('Arrêt de l\'agent...');
-  process.exit(0);
+// Variables globales pour la gestion de l'arrêt
+let fastifyInstance: any = null;
+let isShuttingDown = false;
+
+// Fonction de nettoyage propre
+async function gracefulShutdown(signal: string) {
+  if (isShuttingDown) {
+    logger.warn(`[DEBUG] Signal ${signal} ignoré - arrêt déjà en cours`);
+    return;
+  }
+  
+  isShuttingDown = true;
+  logger.info(`[DEBUG] Signal ${signal} reçu - Arrêt gracieux de l'agent...`);
+  
+  try {
+    if (fastifyInstance) {
+      logger.info('[DEBUG] Fermeture du serveur Fastify...');
+      await fastifyInstance.close();
+      logger.success('[DEBUG] Serveur Fastify fermé proprement');
+    }
+    
+    logger.success('Agent arrêté proprement');
+    process.exit(0);
+  } catch (error) {
+    logger.error(`[DEBUG] Erreur lors de l'arrêt gracieux: ${error}`);
+    process.exit(1);
+  }
+}
+
+// Gestion propre de l'arrêt avec logs de diagnostic
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// Gestion des erreurs non capturées
+process.on('uncaughtException', (error) => {
+  logger.error(`[DEBUG] Exception non capturée: ${error}`);
+  gracefulShutdown('uncaughtException');
 });
 
-process.on('SIGTERM', () => {
-  logger.info('Arrêt de l\'agent...');
-  process.exit(0);
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error(`[DEBUG] Promesse rejetée non gérée: ${reason}`);
+  gracefulShutdown('unhandledRejection');
 });
 
 // Démarrer l'agent

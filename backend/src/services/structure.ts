@@ -1,6 +1,4 @@
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import { minimatch } from 'minimatch';
+import { AgentService } from './agentService.js';
 
 export interface FileNode {
   name: string;
@@ -10,82 +8,24 @@ export interface FileNode {
 }
 
 export async function generateStructure(sourcePath: string, ignorePatterns: string[]): Promise<FileNode[]> {
+  const agentService = new AgentService();
+  
   try {
-    const stats = await fs.stat(sourcePath);
-    if (!stats.isDirectory()) {
-      throw new Error('Source path must be a directory');
+    // Vérifier si l'agent est disponible
+    const isAgentRunning = await agentService.checkStatus();
+    if (!isAgentRunning) {
+      throw new Error('Agent de système de fichiers non disponible. Assurez-vous qu\'il est démarré sur ' + agentService.getAgentUrl());
     }
 
-    return await buildTree(sourcePath, '', ignorePatterns);
+    // Utiliser l'agent pour obtenir la structure
+    return await agentService.getStructure(sourcePath, ignorePatterns);
   } catch (error) {
     throw new Error(`Failed to generate structure: ${error}`);
   }
 }
 
-async function buildTree(dirPath: string, relativePath: string, ignorePatterns: string[]): Promise<FileNode[]> {
-  const items = await fs.readdir(dirPath, { withFileTypes: true });
-  const tree: FileNode[] = [];
-  const directories: FileNode[] = [];
-  const files: FileNode[] = [];
-
-  for (const item of items) {
-    const fullPath = path.join(dirPath, item.name);
-    const itemRelativePath = path.join(relativePath, item.name).replace(/\\/g, '/');
-
-    // Check if this item should be excluded
-    if (isExcluded(itemRelativePath, ignorePatterns)) {
-      continue;
-    }
-
-    if (item.isDirectory()) {
-      try {
-        const children = await buildTree(fullPath, itemRelativePath, ignorePatterns);
-        directories.push({
-          name: item.name,
-          path: itemRelativePath,
-          type: 'directory',
-          children
-        });
-      } catch (error) {
-        // Skip directories we can't read
-        continue;
-      }
-    } else {
-      files.push({
-        name: item.name,
-        path: itemRelativePath,
-        type: 'file'
-      });
-    }
-  }
-
-  // Sort directories and files alphabetically
-  directories.sort((a, b) => a.name.localeCompare(b.name));
-  files.sort((a, b) => a.name.localeCompare(b.name));
-
-  // Return directories first, then files
-  return [...directories, ...files];
-}
-
-function isExcluded(filePath: string, ignorePatterns: string[]): boolean {
-  const normalizedPath = filePath.replace(/\\/g, '/');
-
-  for (const pattern of ignorePatterns) {
-    let processedPattern = pattern;
-
-    // If the pattern doesn't contain a slash and doesn't start with '**/,
-    // prefix it with '**/' so it can match at any level
-    if (!pattern.includes('/') && !pattern.startsWith('**/')) {
-      processedPattern = `**/${pattern}`;
-    }
-
-    if (minimatch(normalizedPath, processedPattern)) {
-      return true;
-    }
-  }
-
-  return false;
-}
+// Les fonctions buildTree et isExcluded ne sont plus nécessaires car
+// elles sont maintenant gérées par l'agent de système de fichiers
 
 export function detectLanguage(extension: string): string {
   const langMap: Record<string, string> = {

@@ -24,12 +24,15 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ai_prompt_tool
       NODE_ENV: development
+      AGENT_URL: http://host.docker.internal:4001
     volumes:
       - ./backend:/app
       - /app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: npm run dev
 
   frontend:

@@ -1,7 +1,7 @@
-import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Environment } from 'nunjucks';
 import { detectLanguage } from './structure.js';
+import { AgentService } from './agentService.js';
 
 export interface PromptGenerationOptions {
   workspace: {
@@ -167,107 +167,81 @@ async function readSelectedFiles(
   selectedFilePaths: string[],
   ignorePatterns: string[]
 ): Promise<CodeFile[]> {
+  const agentService = new AgentService();
   const codeFiles: CodeFile[] = [];
 
-  for (const relativePath of selectedFilePaths) {
-    try {
-      const fullPath = path.join(workspacePath, relativePath);
-      const stats = await fs.stat(fullPath);
-
-      if (stats.isFile()) {
-        const content = await fs.readFile(fullPath, 'utf-8');
-        const lines = content.split('\n').map(text => ({ text }));
-        const extension = path.extname(relativePath);
-        const language = detectLanguage(extension);
-
-        codeFiles.push({
-          path: relativePath,
-          language,
-          lines
-        });
-      }
-    } catch (error) {
-      // Skip files that can't be read
-      console.warn(`Warning: Could not read file ${relativePath}: ${error}`);
+  try {
+    // Vérifier si l'agent est disponible
+    const isAgentRunning = await agentService.checkStatus();
+    if (!isAgentRunning) {
+      throw new Error('Agent de système de fichiers non disponible. Assurez-vous qu\'il est démarré sur ' + agentService.getAgentUrl());
     }
-  }
 
-  return codeFiles;
+    // Utiliser l'agent pour lire les fichiers
+    const fileContents = await agentService.readFiles(workspacePath, selectedFilePaths);
+
+    for (const fileContent of fileContents) {
+      const lines = fileContent.content.split('\n').map(text => ({ text }));
+      const extension = path.extname(fileContent.path);
+      const language = detectLanguage(extension);
+
+      codeFiles.push({
+        path: fileContent.path,
+        language,
+        lines
+      });
+    }
+
+    return codeFiles;
+  } catch (error) {
+    throw new Error(`Failed to read selected files: ${error}`);
+  }
 }
 
 async function generateProjectStructure(workspacePath: string, ignorePatterns: string[]): Promise<string> {
+  const agentService = new AgentService();
+  
   try {
-    const structure = await buildStructureText(workspacePath, '', ignorePatterns, 0);
-    return `Project Root: ${path.basename(workspacePath) || '.'}\n${structure}`;
+    // Vérifier si l'agent est disponible
+    const isAgentRunning = await agentService.checkStatus();
+    if (!isAgentRunning) {
+      return `Error: Agent de système de fichiers non disponible sur ${agentService.getAgentUrl()}`;
+    }
+
+    // Obtenir la structure via l'agent
+    const structure = await agentService.getStructure(workspacePath, ignorePatterns);
+    const structureText = buildStructureTextFromNodes(structure, 0);
+    return `Project Root: ${path.basename(workspacePath) || '.'}\n${structureText}`;
   } catch (error) {
     return `Error generating project structure: ${error}`;
   }
 }
 
-async function buildStructureText(
-  dirPath: string,
-  relativePath: string,
-  ignorePatterns: string[],
-  level: number
-): Promise<string> {
-  const items = await fs.readdir(dirPath, { withFileTypes: true });
+function buildStructureTextFromNodes(nodes: any[], level: number): string {
   const lines: string[] = [];
   const indent = '  '.repeat(level);
 
-  const directories: string[] = [];
-  const files: string[] = [];
+  // Séparer les fichiers et dossiers
+  const files = nodes.filter(node => node.type === 'file');
+  const directories = nodes.filter(node => node.type === 'directory');
 
-  for (const item of items) {
-    const itemRelativePath = path.join(relativePath, item.name).replace(/\\/g, '/');
-
-    // Skip ignored items
-    if (isIgnored(itemRelativePath, ignorePatterns)) {
-      continue;
-    }
-
-    if (item.isDirectory()) {
-      directories.push(item.name);
-    } else {
-      files.push(item.name);
-    }
+  // Ajouter les fichiers d'abord
+  for (const file of files) {
+    lines.push(`${indent}  - ${file.name}`);
   }
 
-  // Add files first
-  for (const file of files.sort()) {
-    lines.push(`${indent}  - ${file}`);
-  }
-
-  // Add directories and their contents
-  for (const dir of directories.sort()) {
-    lines.push(`${indent}Directory: ${dir}/`);
-    try {
-      const subDirPath = path.join(dirPath, dir);
-      const subRelativePath = path.join(relativePath, dir);
-      const subStructure = await buildStructureText(subDirPath, subRelativePath, ignorePatterns, level + 1);
+  // Ajouter les dossiers et leur contenu
+  for (const dir of directories) {
+    lines.push(`${indent}Directory: ${dir.name}/`);
+    if (dir.children && dir.children.length > 0) {
+      const subStructure = buildStructureTextFromNodes(dir.children, level + 1);
       if (subStructure) {
         lines.push(subStructure);
       }
-    } catch (error) {
-      // Skip directories we can't read
     }
   }
 
   return lines.join('\n');
-}
-
-function isIgnored(filePath: string, ignorePatterns: string[]): boolean {
-  // Simple pattern matching - could be enhanced with minimatch
-  for (const pattern of ignorePatterns) {
-    if (pattern.includes('*')) {
-      const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-      if (regex.test(filePath)) {
-        return true;
-      }
-    } else if (filePath.includes(pattern)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 function parseFormatInstructions(instructions: string): string[] {

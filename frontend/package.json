@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/package",
   "name": "ai-prompt-tool-frontend",
   "version": "2.0.0",
   "description": "Frontend for AI Prompt Tool v2",

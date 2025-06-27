@@ -155,10 +155,10 @@ export const settingsApi = {
 export const promptApi = {
   generate: (data: {
     workspaceId: string;
-    finalRequest: string;
-    selectedFilePaths: string[];
-    formatId: string;
-    roleId: string;
+    finalRequest?: string;
+    selectedFilePaths?: string[];
+    formatId?: string;
+    roleId?: string;
   }): Promise<{ prompt: string }> =>
     fetchApi('/api/prompt/generate', {
       method: 'POST',

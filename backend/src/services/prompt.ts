@@ -1,7 +1,7 @@
 import * as path from 'path';
-import { Environment } from 'nunjucks';
 import { detectLanguage } from './structure.js';
 import { AgentService } from './agentService.js';
+import { TemplateService } from './templateService.js';
 
 export interface PromptGenerationOptions {
   workspace: {
@@ -12,19 +12,19 @@ export interface PromptGenerationOptions {
     lastFinalRequest?: string | null;
     ignorePatterns: string[];
   };
-  format: {
+  format?: {
     id: string;
     name: string;
     instructions: string;
     examples: string;
-  };
-  role: {
+  } | null;
+  role?: {
     id: string;
     name: string;
     description: string;
-  };
-  finalRequest: string;
-  selectedFilePaths: string[];
+  } | null;
+  finalRequest?: string;
+  selectedFilePaths?: string[];
   ignorePatterns: string[];
 }
 
@@ -40,111 +40,42 @@ export async function generatePrompt(options: PromptGenerationOptions): Promise<
     format,
     role,
     finalRequest,
-    selectedFilePaths,
+    selectedFilePaths = [],
     ignorePatterns
   } = options;
 
   try {
-    // Read selected files content
-    const codeFiles = await readSelectedFiles(workspace.path, selectedFilePaths, ignorePatterns);
+    const templateService = new TemplateService();
+    
+    // Load the system template
+    const template = await templateService.loadTemplate('system-template.njk');
 
-    // Generate project structure
+    // Read selected files content only if files are selected
+    const codeFiles = selectedFilePaths.length > 0
+      ? await readSelectedFiles(workspace.path, selectedFilePaths, ignorePatterns)
+      : [];
+
+    // Generate project structure (always included for context)
     const projectStructure = await generateProjectStructure(workspace.path, ignorePatterns);
 
-    // Parse format instructions and examples
-    const formatInstructions = parseFormatInstructions(format.instructions);
-    const formatExamples = parseFormatExamples(format.examples);
+    // Parse format instructions and examples only if format is provided
+    const formatInstructions = format ? parseFormatInstructions(format.instructions) : [];
+    const formatExamples = format ? parseFormatExamples(format.examples) : [];
 
-    // Setup Nunjucks environment
-    const env = new Environment();
-
-    // Define the template
-    const template = `
-{%- if include_role_and_expertise %}
-====================================
-ROLE AND EXPERTISE
-====================================
-{{ role_description }}
-{%- endif %}
-
-{%- if include_final_request %}
-====================================
-DYNAMIC TASK - USER REQUEST
-====================================
-[The following is the specific task you need to accomplish. While the rest of this prompt provides static context and guidelines, this section represents the dynamic user request that changes with each prompt generation.]
-
-{{ final_request }}
-
-Your response must strictly follow the format specified in the FORMAT INSTRUCTIONS section below. This format is crucial for proper processing of your response.
-{%- endif %}
-
-{%- if include_format_instructions %}
-====================================
-FORMAT INSTRUCTIONS
-====================================
-Format: {{ format_name }}
-
-Instructions:
-{%- for instr in format_instructions %}
-- {{ instr }}
-{%- endfor %}
-
-Examples:
-{%- for ex in format_examples %}
-{{ ex }}
-{%- endfor %}
-{%- endif %}
-
-{%- if include_project_info %}
-====================================
-PROJECT INFORMATION
-====================================
-Project Name: {{ project_name }}
-Workspace Path: {{ workspace_path }}
-{%- endif %}
-
-{%- if include_structure %}
-====================================
-PROJECT STRUCTURE
-====================================
-{{ project_structure }}
-{%- endif %}
-
-{%- if include_code_content %}
-====================================
-CODE CONTENT
-====================================
-{%- for file_item in code_files %}
-File: {{ file_item.path }}
-Language: {{ file_item.language }}
-
-\`\`\`
-{%- for line in file_item.lines %}
-{{ line.text }}
-{%- endfor %}
-\`\`\`
-
-{%- if not loop.last %}
----------------------------------------------------------------------------
-{%- endif %}
-{%- endfor %}
-{%- endif %}
-`.trim();
-
-    // Prepare template context
+    // Prepare template context with conditional sections
     const templateContext = {
-      // Prompt options - all enabled by default
-      include_role_and_expertise: true,
-      include_final_request: true,
-      include_format_instructions: true,
-      include_project_info: true,
-      include_structure: true,
-      include_code_content: true,
+      // Conditional sections based on what's provided
+      include_role_and_expertise: !!role,
+      include_final_request: !!finalRequest && finalRequest.trim() !== '',
+      include_format_instructions: !!format,
+      include_project_info: true, // Always include project info
+      include_structure: true, // Always include structure for context
+      include_code_content: codeFiles.length > 0,
 
-      // Data
-      role_description: role.description,
-      final_request: finalRequest,
-      format_name: format.name,
+      // Data (with fallbacks for optional fields)
+      role_description: role?.description || '',
+      final_request: finalRequest || '',
+      format_name: format?.name || '',
       format_instructions: formatInstructions,
       format_examples: formatExamples,
       project_name: workspace.name,
@@ -154,7 +85,7 @@ Language: {{ file_item.language }}
     };
 
     // Render the template
-    const prompt = env.renderString(template, templateContext);
+    const prompt = templateService.renderTemplate(template, templateContext);
     return prompt;
 
   } catch (error) {

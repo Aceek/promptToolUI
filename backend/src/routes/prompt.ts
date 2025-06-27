@@ -46,16 +46,16 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{
     Body: {
       workspaceId: string;
-      finalRequest: string;
-      selectedFilePaths: string[];
-      formatId: string;
-      roleId: string;
+      finalRequest?: string;
+      selectedFilePaths?: string[];
+      formatId?: string;
+      roleId?: string;
     }
   }>('/generate', async (request, reply) => {
     try {
-      const { workspaceId, finalRequest, selectedFilePaths, formatId, roleId } = request.body;
+      const { workspaceId, finalRequest = '', selectedFilePaths = [], formatId, roleId } = request.body;
 
-      // Fetch workspace
+      // Fetch workspace (required)
       const workspace = await prisma.workspace.findUnique({
         where: { id: workspaceId }
       });
@@ -65,24 +65,30 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
         return;
       }
 
-      // Fetch format
-      const format = await prisma.format.findUnique({
-        where: { id: formatId }
-      });
+      // Fetch format (optional)
+      let format = null;
+      if (formatId) {
+        format = await prisma.format.findUnique({
+          where: { id: formatId }
+        });
 
-      if (!format) {
-        reply.status(404).send({ error: 'Format not found' });
-        return;
+        if (!format) {
+          reply.status(404).send({ error: 'Format not found' });
+          return;
+        }
       }
 
-      // Fetch role
-      const role = await prisma.role.findUnique({
-        where: { id: roleId }
-      });
+      // Fetch role (optional)
+      let role = null;
+      if (roleId) {
+        role = await prisma.role.findUnique({
+          where: { id: roleId }
+        });
 
-      if (!role) {
-        reply.status(404).send({ error: 'Role not found' });
-        return;
+        if (!role) {
+          reply.status(404).send({ error: 'Role not found' });
+          return;
+        }
       }
 
       // Get global ignore patterns

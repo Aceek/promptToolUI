@@ -1,0 +1,71 @@
+{%- if include_role_and_expertise %}
+====================================
+ROLE AND EXPERTISE
+====================================
+{{ role_description }}
+{%- endif %}
+
+{%- if include_final_request %}
+====================================
+DYNAMIC TASK - USER REQUEST
+====================================
+[The following is the specific task you need to accomplish. While the rest of this prompt provides static context and guidelines, this section represents the dynamic user request that changes with each prompt generation.]
+
+{{ final_request }}
+
+{%- if include_format_instructions %}
+Your response must strictly follow the format specified in the FORMAT INSTRUCTIONS section below. This format is crucial for proper processing of your response.
+{%- endif %}
+{%- endif %}
+
+{%- if include_format_instructions %}
+====================================
+FORMAT INSTRUCTIONS
+====================================
+Format: {{ format_name }}
+
+Instructions:
+{%- for instr in format_instructions %}
+- {{ instr }}
+{%- endfor %}
+
+Examples:
+{%- for ex in format_examples %}
+{{ ex }}
+{%- endfor %}
+{%- endif %}
+
+{%- if include_project_info %}
+====================================
+PROJECT INFORMATION
+====================================
+Project Name: {{ project_name }}
+Workspace Path: {{ workspace_path }}
+{%- endif %}
+
+{%- if include_structure %}
+====================================
+PROJECT STRUCTURE
+====================================
+{{ project_structure }}
+{%- endif %}
+
+{%- if include_code_content %}
+====================================
+CODE CONTENT
+====================================
+{%- for file_item in code_files %}
+File: {{ file_item.path }}
+Language: {{ file_item.language }}
+
+```
+{%- for line in file_item.lines %}
+{{ line.text }}
+{%- endfor %}
+```
+
+{%- if not loop.last %}
+---------------------------------------------------------------------------
+{%- endif %}
+{%- endfor %}
+{%- endif %}

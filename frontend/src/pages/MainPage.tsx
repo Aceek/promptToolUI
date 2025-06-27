@@ -65,13 +65,9 @@ const MainPage = () => {
     const currentFormat = getSelectedFormat();
     const currentRole = getSelectedRole();
     
-    if (!selectedWorkspace || !currentFormat || !currentRole) {
-      alert('Veuillez sélectionner un espace de travail, un format et un rôle');
-      return;
-    }
-
-    if (selectedFiles.length === 0) {
-      alert('Veuillez sélectionner au moins un fichier');
+    // Seul l'espace de travail est obligatoire
+    if (!selectedWorkspace) {
+      alert('Veuillez sélectionner un espace de travail');
       return;
     }
 
@@ -83,13 +79,29 @@ const MainPage = () => {
         lastFinalRequest: finalRequest,
       });
 
-      const data = await promptApi.generate({
+      // Préparer les données pour l'API (tout est optionnel sauf workspaceId)
+      const requestData: any = {
         workspaceId: selectedWorkspace.id,
-        finalRequest,
-        selectedFilePaths: selectedFiles,
-        formatId: currentFormat.id,
-        roleId: currentRole.id,
-      });
+      };
+
+      // Ajouter les champs optionnels seulement s'ils sont définis
+      if (finalRequest && finalRequest.trim() !== '') {
+        requestData.finalRequest = finalRequest;
+      }
+
+      if (selectedFiles.length > 0) {
+        requestData.selectedFilePaths = selectedFiles;
+      }
+
+      if (currentFormat) {
+        requestData.formatId = currentFormat.id;
+      }
+
+      if (currentRole) {
+        requestData.roleId = currentRole.id;
+      }
+
+      const data = await promptApi.generate(requestData);
       setGeneratedPrompt(data.prompt);
     } catch (error) {
       console.error('Erreur:', error);
@@ -235,7 +247,7 @@ const MainPage = () => {
             <button
               className="btn-primary"
               onClick={handleGeneratePrompt}
-              disabled={isGenerating || !selectedWorkspace || !selectedFormat || !selectedRole || selectedFiles.length === 0}
+              disabled={isGenerating || !selectedWorkspace}
             >
               {isGenerating ? 'Génération...' : 'Générer le Prompt'}
             </button>
@@ -255,7 +267,7 @@ const MainPage = () => {
                   📋 Copier
                 </button>
               </div>
-              <pre className="bg-gray-50 border border-gray-200 rounded-md p-4 text-sm overflow-auto max-h-96 whitespace-pre-wrap">
+              <pre className="bg-gray-50 border border-gray-200 rounded-md p-4 text-sm overflow-auto whitespace-pre-wrap" style={{ maxHeight: 'none', height: 'auto' }}>
                 {generatedPrompt}
               </pre>
             </div>

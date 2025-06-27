@@ -5,7 +5,7 @@
   "scripts": {
     "start": "concurrently --kill-others-on-fail --names \"DOCKER,AGENT\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm:start:docker\" \"npm:start:agent\"",
     "start:docker": "docker compose up",
-    "start:agent": "cd file-system-agent && npm start",
+    "start:agent": "cd file-system-agent && npm run dev",
     "init": "docker compose up -d && docker compose exec backend npm run db:push && docker compose exec backend npm run db:seed && npm run start"
   },
   "devDependencies": {

@@ -17,6 +17,10 @@ export const internalRoutes: FastifyPluginAsync = async (fastify) => {
         resourceId: workspaceId
       });
 
+      // LOG DIAGNOSTIC: Vérifier les clients connectés
+      const connectedSockets = await fastify.io.in(workspaceId).fetchSockets();
+      fastify.appLogger.info(`[DIAGNOSTIC] Broadcasting to workspace ${workspaceId}. Connected clients: ${connectedSockets.length}`);
+      
       // Diffuser le changement à tous les clients écoutant ce workspace
       fastify.io.to(workspaceId).emit('filesystem:change', {
         type,
@@ -24,9 +28,11 @@ export const internalRoutes: FastifyPluginAsync = async (fastify) => {
         workspaceId,
       });
 
+      fastify.appLogger.success(`[DIAGNOSTIC] Filesystem change broadcasted successfully to ${connectedSockets.length} clients`);
+
       return reply.status(204).send();
     } catch (error) {
-      fastify.appLogger.error(`Error processing filesystem notification: ${error}`);
+      fastify.appLogger.error(`[DIAGNOSTIC] Error processing filesystem notification: ${error}`);
       return reply.status(500).send({ error: 'Internal Server Error' });
     }
   });

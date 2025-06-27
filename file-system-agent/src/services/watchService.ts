@@ -36,6 +36,10 @@ export class WatchService {
         path: watchPath,
       });
 
+      // LOG DIAGNOSTIC: Afficher l'URL de callback utilisée
+      logger.info(`[DIAGNOSTIC] Attempting to notify backend at: ${callbackUrl}`);
+      logger.info(`[DIAGNOSTIC] Payload: ${JSON.stringify({ type: eventType, path: relativePath })}`);
+
       try {
         const response = await fetch(callbackUrl, {
           method: 'POST',
@@ -43,22 +47,43 @@ export class WatchService {
           body: JSON.stringify({ type: eventType, path: relativePath }),
         });
         if (!response.ok) {
-           logger.error(`Backend notification failed with status ${response.status} for ${callbackUrl}`);
+           const responseText = await response.text();
+           logger.error(`[DIAGNOSTIC] Backend notification failed with status ${response.status} for ${callbackUrl}. Response: ${responseText}`);
         } else {
-           logger.success(`Backend notified successfully for ${relativePath}`);
+           logger.success(`[DIAGNOSTIC] Backend notified successfully for ${relativePath}. Status: ${response.status}`);
         }
       } catch (error) {
-        logger.error(`Failed to notify backend at ${callbackUrl}: ${error}`);
+        logger.error(`[DIAGNOSTIC] Network error when notifying backend at ${callbackUrl}: ${error}`);
+        logger.error(`[DIAGNOSTIC] Error details: ${error instanceof Error ? error.message : String(error)}`);
       }
     };
 
     watcher
-      .on('add', (p) => notifyBackend('add', p))
-      .on('unlink', (p) => notifyBackend('unlink', p))
-      .on('addDir', (p) => notifyBackend('addDir', p))
-      .on('unlinkDir', (p) => notifyBackend('unlinkDir', p))
-      .on('error', (error) => logger.error(`Watcher error on ${watchPath}: ${error}`))
-      .on('ready', () => logger.success(`Watcher is ready and scanning: ${watchPath}`));
+      .on('add', (p) => {
+        logger.info(`[DIAGNOSTIC] Chokidar detected file ADD: ${p}`);
+        notifyBackend('add', p);
+      })
+      .on('unlink', (p) => {
+        logger.info(`[DIAGNOSTIC] Chokidar detected file UNLINK: ${p}`);
+        notifyBackend('unlink', p);
+      })
+      .on('addDir', (p) => {
+        logger.info(`[DIAGNOSTIC] Chokidar detected directory ADD: ${p}`);
+        notifyBackend('addDir', p);
+      })
+      .on('unlinkDir', (p) => {
+        logger.info(`[DIAGNOSTIC] Chokidar detected directory UNLINK: ${p}`);
+        notifyBackend('unlinkDir', p);
+      })
+      .on('change', (p) => {
+        logger.info(`[DIAGNOSTIC] Chokidar detected file CHANGE: ${p}`);
+        notifyBackend('change', p);
+      })
+      .on('error', (error) => logger.error(`[DIAGNOSTIC] Watcher error on ${watchPath}: ${error}`))
+      .on('ready', () => {
+        logger.success(`[DIAGNOSTIC] Watcher is ready and scanning: ${watchPath}`);
+        logger.info(`[DIAGNOSTIC] Watcher configuration: ignored patterns count = ${ignorePatterns.length}`);
+      });
   }
 }
 

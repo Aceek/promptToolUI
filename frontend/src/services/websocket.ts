@@ -94,11 +94,19 @@ export class WebSocketService {
       throw new Error('WebSocket not connected');
     }
 
-    this.socket.on('filesystem:change', callback);
+    // LOG DIAGNOSTIC: Wrapper pour tracer les événements reçus
+    const wrappedCallback = (event: FilesystemChangeEvent) => {
+      console.log('[DIAGNOSTIC] Filesystem change event received:', event);
+      console.log('[DIAGNOSTIC] Current workspace ID:', this.currentWorkspaceId);
+      console.log('[DIAGNOSTIC] Event workspace ID:', event.workspaceId);
+      callback(event);
+    };
+
+    this.socket.on('filesystem:change', wrappedCallback);
 
     // Return cleanup function
     return () => {
-      this.socket?.off('filesystem:change', callback);
+      this.socket?.off('filesystem:change', wrappedCallback);
     };
   }
 

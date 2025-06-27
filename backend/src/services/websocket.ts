@@ -10,20 +10,17 @@ const backendCallbackBaseUrl = process.env.BACKEND_CALLBACK_URL || 'http://local
 
 export function setupWebSocket(io: Server, prisma: PrismaClient) {
   io.on('connection', (socket: Socket) => {
-    logger.info(`[DIAGNOSTIC] WebSocket client connected: ${socket.id}`);
+    logger.info(`WebSocket client connected: ${socket.id}`);
     const subscriptions = new Set<string>();
 
     socket.on('watch-workspace', async (data: { workspaceId: string }) => {
       try {
         const { workspaceId } = data;
         
-        // LOG DIAGNOSTIC: Vérifier la room avant et après join
-        logger.info(`[DIAGNOSTIC] Socket ${socket.id} joining workspace room: ${workspaceId}`);
         socket.join(workspaceId);
         subscriptions.add(workspaceId);
         
         const roomSockets = await io.in(workspaceId).fetchSockets();
-        logger.info(`[DIAGNOSTIC] Room ${workspaceId} now has ${roomSockets.length} clients: ${roomSockets.map(s => s.id).join(', ')}`);
 
         const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
         if (!workspace) {
@@ -40,11 +37,7 @@ export function setupWebSocket(io: Server, prisma: PrismaClient) {
         // MODIFICATION : Construire l'URL de callback
         const callbackUrl = `${backendCallbackBaseUrl}/api/internal/workspaces/${workspace.id}/notify-change`;
 
-        // LOG DIAGNOSTIC: Afficher les détails de la requête à l'agent
-        logger.info(`[DIAGNOSTIC] Requesting agent to watch path: ${workspace.path}`);
-        logger.info(`[DIAGNOSTIC] Agent URL: ${agentUrl}/watch`);
-        logger.info(`[DIAGNOSTIC] Callback URL: ${callbackUrl}`);
-        logger.info(`[DIAGNOSTIC] Ignore patterns: ${ignorePatterns.length} patterns`);
+        logger.info(`Requesting agent to watch path: ${workspace.path}`);
 
         const agentResponse = await fetch(`${agentUrl}/watch`, {
           method: 'POST',
@@ -55,15 +48,15 @@ export function setupWebSocket(io: Server, prisma: PrismaClient) {
 
         if (!agentResponse.ok) {
           const errorText = await agentResponse.text();
-          logger.error(`[DIAGNOSTIC] Agent watch request failed: ${agentResponse.status} - ${errorText}`);
+          logger.error(`Agent watch request failed: ${agentResponse.status} - ${errorText}`);
           throw new Error(`Agent responded with ${agentResponse.status}: ${errorText}`);
         }
 
-        logger.success(`[DIAGNOSTIC] Client ${socket.id} started watching workspace ${workspace.name}`);
+        logger.success(`Client ${socket.id} started watching workspace ${workspace.name}`);
         socket.emit('watch-started', { workspaceId });
 
       } catch (error) {
-        logger.error(`[DIAGNOSTIC] Failed to ask agent to watch: ${error}`);
+        logger.error(`Failed to ask agent to watch: ${error}`);
         socket.emit('error', { message: 'Failed to start watching workspace. Is the agent running?' });
       }
     });

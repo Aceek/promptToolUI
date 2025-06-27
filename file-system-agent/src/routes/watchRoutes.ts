@@ -12,8 +12,6 @@ export const watchRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const { path, callbackUrl, ignorePatterns = [] } = request.body;
 
-      fastify.appLogger.info(`Received request to watch path: ${path}`);
-
       if (!path || !callbackUrl) {
         return reply.status(400).send({ error: 'Parameters "path" and "callbackUrl" are required' });
       }

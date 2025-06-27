@@ -67,28 +67,19 @@ const MainPage = () => {
 
   // Gère la connexion et l'abonnement aux changements de fichiers
   useEffect(() => {
-    console.log('[DIAGNOSTIC] WebSocket effect triggered. Selected workspace:', selectedWorkspace?.id);
-    
     const connectAndWatch = async () => {
       try {
-        console.log('[DIAGNOSTIC] Checking WebSocket connection status:', websocketService.isConnected());
-        
         if (!websocketService.isConnected()) {
-          console.log('[DIAGNOSTIC] Connecting to WebSocket...');
           await websocketService.connect();
-          console.log('[DIAGNOSTIC] WebSocket connected successfully');
         }
         
         if (selectedWorkspace) {
-          console.log('[DIAGNOSTIC] Starting to watch workspace:', selectedWorkspace.id);
           await websocketService.watchWorkspace(selectedWorkspace.id);
-          console.log('[DIAGNOSTIC] Workspace watch started successfully');
         } else {
-          console.log('[DIAGNOSTIC] No workspace selected, stopping watch');
           websocketService.stopWatching();
         }
       } catch (error) {
-        console.error("[DIAGNOSTIC] WebSocket connection/watch error:", error);
+        console.error("WebSocket connection/watch error:", error);
       }
     };
     connectAndWatch();
@@ -98,27 +89,18 @@ const MainPage = () => {
       return () => {
         clearTimeout(timer);
         timer = setTimeout(() => {
-          console.log('[DIAGNOSTIC] Debounced reload triggered');
           loadFileStructure();
         }, 500);
       };
     })();
 
     const cleanup = websocketService.onFilesystemChange((event) => {
-      console.log('[DIAGNOSTIC] Filesystem change handler called:', event);
-      console.log('[DIAGNOSTIC] Current workspace ID:', selectedWorkspace?.id);
-      console.log('[DIAGNOSTIC] Event workspace ID:', event.workspaceId);
-      
       if(event.workspaceId === selectedWorkspace?.id) {
-         console.log('[DIAGNOSTIC] Workspace IDs match, reloading structure:', event);
          debouncedReload();
-      } else {
-         console.log('[DIAGNOSTIC] Workspace IDs do not match, ignoring event');
       }
     });
 
     return () => {
-      console.log('[DIAGNOSTIC] Cleaning up WebSocket effect');
       cleanup();
     };
   }, [selectedWorkspace, loadFileStructure]);

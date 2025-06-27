@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { useAppStore } from '../store/useAppStore';
+import { useState, useEffect, useCallback } from 'react';
+import { useAppStore, FileNode } from '../store/useAppStore';
 import { promptApi, workspaceApi } from '../services/api';
+import { websocketService } from '../services/websocket';
 import { FileTree } from '../components';
 
 const MainPage = () => {
@@ -36,34 +37,74 @@ const MainPage = () => {
     getSelectedRole
   } = useAppStore();
 
+  const loadFileStructure = useCallback(async () => {
+    if (!selectedWorkspace) {
+      setFileStructure([]);
+      return;
+    }
+
+    setIsLoadingStructure(true);
+    try {
+      const structure = await workspaceApi.getStructure(selectedWorkspace.id);
+      setFileStructure(structure);
+    } catch (error) {
+      console.error('Erreur lors du chargement de la structure:', error);
+      setFileStructure([]);
+    } finally {
+      setIsLoadingStructure(false);
+    }
+  }, [selectedWorkspace, setFileStructure]);
+
   useEffect(() => {
     fetchWorkspaces();
     fetchFormats();
     fetchRoles();
   }, [fetchWorkspaces, fetchFormats, fetchRoles]);
-
-  // Charger la structure de fichiers quand un workspace est sélectionné
+  
   useEffect(() => {
-    const loadFileStructure = async () => {
-      if (!selectedWorkspace) {
-        setFileStructure([]);
-        return;
-      }
+    loadFileStructure();
+  }, [loadFileStructure]);
 
-      setIsLoadingStructure(true);
+  // Gère la connexion et l'abonnement aux changements de fichiers
+  useEffect(() => {
+    const connectAndWatch = async () => {
       try {
-        const structure = await workspaceApi.getStructure(selectedWorkspace.id);
-        setFileStructure(structure);
+        if (!websocketService.isConnected()) {
+          await websocketService.connect();
+        }
+        
+        if (selectedWorkspace) {
+          await websocketService.watchWorkspace(selectedWorkspace.id);
+        } else {
+          websocketService.stopWatching();
+        }
       } catch (error) {
-        console.error('Erreur lors du chargement de la structure:', error);
-        setFileStructure([]);
-      } finally {
-        setIsLoadingStructure(false);
+        console.error("WebSocket connection/watch error:", error);
       }
     };
+    connectAndWatch();
 
-    loadFileStructure();
-  }, [selectedWorkspace, setFileStructure]);
+    const debouncedReload = (() => {
+      let timer: any;
+      return () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          loadFileStructure();
+        }, 500);
+      };
+    })();
+
+    const cleanup = websocketService.onFilesystemChange((event) => {
+      if(event.workspaceId === selectedWorkspace?.id) {
+         console.log('Filesystem change detected, reloading structure:', event);
+         debouncedReload();
+      }
+    });
+
+    return () => {
+      cleanup();
+    };
+  }, [selectedWorkspace, loadFileStructure]);
 
   const handleGeneratePrompt = async () => {
     const currentFormat = getSelectedFormat();
@@ -124,6 +165,27 @@ const MainPage = () => {
 
   const handleRoleChange = (roleId: string) => {
     setSelectedRole(roleId || null);
+  };
+
+  const getAllFilePaths = (nodes: FileNode[]): string[] => {
+    let paths: string[] = [];
+    for (const node of nodes) {
+      if (node.type === 'file') {
+        paths.push(node.path);
+      }
+      if (node.children) {
+        paths = paths.concat(getAllFilePaths(node.children));
+      }
+    }
+    return paths;
+  };
+
+  const handleSelectAll = () => {
+    setSelectedFiles(getAllFilePaths(fileStructure));
+  };
+  
+  const handleDeselectAll = () => {
+    setSelectedFiles([]);
   };
 
   return (
@@ -239,9 +301,19 @@ const MainPage = () => {
           {/* Sélection de fichiers */}
           {selectedWorkspace && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fichiers à inclure ({selectedFiles.length} sélectionné{selectedFiles.length !== 1 ? 's' : ''})
-              </label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Fichiers à inclure ({selectedFiles.length} sélectionné{selectedFiles.length !== 1 ? 's' : ''})
+                </label>
+                <div className="flex items-center space-x-2">
+                  <button onClick={handleSelectAll} className="btn-secondary py-1 px-2 text-xs">Tout sél.</button>
+                  <button onClick={handleDeselectAll} className="btn-secondary py-1 px-2 text-xs">Tout désél.</button>
+                  <button onClick={loadFileStructure} className="btn-secondary py-1 px-2 text-xs" title="Rafraîchir l'arborescence">
+                    {isLoadingStructure ? '...' : '🔄'}
+                  </button>
+                </div>
+              </div>
+              
               {isLoadingStructure ? (
                 <div className="flex items-center justify-center py-8 text-gray-500">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>

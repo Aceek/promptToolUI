@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { healthRoutes } from './routes/healthRoutes';
 import { fileRoutes } from './routes/fileRoutes';
+import { watchRoutes } from './routes/watchRoutes';
 import { getConfig } from './config';
 import { logger } from './logger';
 
@@ -22,14 +23,16 @@ async function start() {
 
     // Enregistrer le plugin CORS
     await fastify.register(cors, {
-      origin: config.corsOrigins,
+      origin: true, // Accepte n'importe quelle origine
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization']
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      credentials: true
     });
 
-    // Enregistrer les routes
+        // Enregistrer les routes
     await fastify.register(healthRoutes);
     await fastify.register(fileRoutes);
+    await fastify.register(watchRoutes);
 
     // Route de base pour vérifier que l'agent fonctionne
     fastify.get('/', async (request, reply) => {
@@ -40,7 +43,8 @@ async function start() {
         endpoints: {
           health: 'GET /status',
           structure: 'GET /structure?path=<path>&ignorePatterns=<patterns>',
-          fileContent: 'POST /files/content'
+          fileContent: 'POST /files/content',
+          watch: 'POST /watch'
         }
       };
     });

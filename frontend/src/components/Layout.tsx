@@ -55,6 +55,14 @@ const Layout = () => {
           </Link>
           
           <Link
+            to="/settings/prompt-templates"
+            className={`sidebar-nav-item ${isActive('/settings/prompt-templates') ? 'active' : ''}`}
+          >
+            <span>📄</span>
+            <span>Templates de Prompt</span>
+          </Link>
+          
+          <Link
             to="/settings/ignore-patterns"
             className={`sidebar-nav-item ${isActive('/settings/ignore-patterns') ? 'active' : ''}`}
           >

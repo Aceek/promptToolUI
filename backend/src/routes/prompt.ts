@@ -52,6 +52,7 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
       roleId?: string;
       includeProjectInfo: boolean;
       includeStructure: boolean;
+      promptTemplateId?: string;
     }
   }>('/generate', async (request, reply) => {
     try {
@@ -62,7 +63,8 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
         formatId, 
         roleId,
         includeProjectInfo,
-        includeStructure 
+        includeStructure,
+        promptTemplateId
       } = request.body;
 
       // Fetch workspace (required)
@@ -127,6 +129,7 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
       
       // Generate the prompt
       const prompt = await generatePrompt({
+        prisma, // Passer l'instance prisma
         workspace,
         format,
         role,
@@ -135,6 +138,7 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
         ignorePatterns: allIgnorePatterns,
         includeProjectInfo,
         includeStructure,
+        promptTemplateId, // Passer l'ID
       });
 
       fastify.appLogger.business({

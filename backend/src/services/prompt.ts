@@ -1,11 +1,12 @@
 import * as path from 'path';
 import { detectLanguage } from './structure.js';
 import { AgentService } from './agentService.js';
-import { TemplateService } from './templateService.js';
-import { Workspace, Format, Role } from '@prisma/client';
+import { Workspace, Format, Role, PromptTemplate, PrismaClient } from '@prisma/client';
+import { renderString } from 'nunjucks';
 
 
 export interface PromptGenerationOptions {
+  prisma: PrismaClient;
   workspace: Workspace;
   format?: Format | null;
   role?: Role | null;
@@ -14,6 +15,7 @@ export interface PromptGenerationOptions {
   ignorePatterns: string[];
   includeProjectInfo: boolean;
   includeStructure: boolean;
+  promptTemplateId?: string | null | undefined;
 }
 
 export interface CodeFile {
@@ -24,6 +26,7 @@ export interface CodeFile {
 
 export async function generatePrompt(options: PromptGenerationOptions): Promise<string> {
   const {
+    prisma,
     workspace,
     format,
     role,
@@ -31,14 +34,23 @@ export async function generatePrompt(options: PromptGenerationOptions): Promise<
     selectedFilePaths = [],
     ignorePatterns,
     includeProjectInfo,
-    includeStructure
+    includeStructure,
+    promptTemplateId
   } = options;
 
   try {
-    const templateService = new TemplateService();
-    
-    // Load the system template
-    const template = await templateService.loadTemplate('system-template.njk');
+    // Step 1: Load the prompt template from database
+    let promptTemplate: PromptTemplate | null = null;
+    if (promptTemplateId) {
+      promptTemplate = await prisma.promptTemplate.findUnique({ where: { id: promptTemplateId } });
+    }
+    // Fallback to default template if none found or provided
+    if (!promptTemplate) {
+      promptTemplate = await prisma.promptTemplate.findFirst({ where: { isDefault: true } });
+    }
+    if (!promptTemplate) {
+      throw new Error('No default prompt template found in the database.');
+    }
 
     // Read selected files content only if files are selected
     const codeFiles = selectedFilePaths.length > 0
@@ -77,8 +89,8 @@ export async function generatePrompt(options: PromptGenerationOptions): Promise<
       code_files: codeFiles
     };
 
-    // Render the template
-    const prompt = templateService.renderTemplate(template, templateContext);
+    // Render the template using Nunjucks directly
+    const prompt = renderString(promptTemplate.content, templateContext);
     return prompt;
 
   } catch (error) {

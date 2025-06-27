@@ -31,6 +31,10 @@ model Workspace {
   defaultFormat     Format?  @relation("DefaultFormat", fields: [defaultFormatId], references: [id])
   defaultRoleId     String?
   defaultRole       Role?    @relation("DefaultRole", fields: [defaultRoleId], references: [id])
+  
+  // New Relation for Prompt Template
+  defaultPromptTemplateId String?
+  defaultPromptTemplate   PromptTemplate? @relation("DefaultPromptTemplate", fields: [defaultPromptTemplateId], references: [id])
 }
 
 // A Format defines how the LLM should structure its response.
@@ -56,6 +60,19 @@ model Role {
 
   // Relations
   defaultForWorkspaces Workspace[] @relation("DefaultRole")
+}
+
+// A PromptTemplate defines the structure of the system prompt.
+model PromptTemplate {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  content   String   @db.Text
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  defaultForWorkspaces Workspace[] @relation("DefaultPromptTemplate")
 }
 
 // Global settings for the application.

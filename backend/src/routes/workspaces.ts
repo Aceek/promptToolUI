@@ -10,7 +10,8 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
       const workspaces = await prisma.workspace.findMany({
         include: {
           defaultFormat: true,
-          defaultRole: true
+          defaultRole: true,
+          defaultPromptTemplate: true
         },
         orderBy: {
           updatedAt: 'desc'
@@ -31,7 +32,8 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
         where: { id },
         include: {
           defaultFormat: true,
-          defaultRole: true
+          defaultRole: true,
+          defaultPromptTemplate: true
         }
       });
 
@@ -54,6 +56,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
       path: string;
       defaultFormatId?: string;
       defaultRoleId?: string;
+      defaultPromptTemplateId?: string;
       ignorePatterns?: string[];
       projectInfo?: string;
     }
@@ -64,6 +67,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
         path,
         defaultFormatId,
         defaultRoleId,
+        defaultPromptTemplateId,
         ignorePatterns = [],
         projectInfo
       } = request.body;
@@ -82,12 +86,16 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
       if (defaultRoleId) {
         data.defaultRoleId = defaultRoleId;
       }
+      if (defaultPromptTemplateId) {
+        data.defaultPromptTemplateId = defaultPromptTemplateId;
+      }
 
       const workspace = await prisma.workspace.create({
         data,
         include: {
           defaultFormat: true,
-          defaultRole: true
+          defaultRole: true,
+          defaultPromptTemplate: true
         }
       });
 
@@ -113,18 +121,20 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
       lastFinalRequest?: string;
       defaultFormatId?: string | null;
       defaultRoleId?: string | null;
+      defaultPromptTemplateId?: string | null;
       ignorePatterns?: string[];
       projectInfo?: string;
     }
   }>('/:id', async (request, reply) => {
     try {
       const { id } = request.params;
-      const { defaultFormatId, defaultRoleId, ...restOfBody } = request.body;
+      const { defaultFormatId, defaultRoleId, defaultPromptTemplateId, ...restOfBody } = request.body;
       
       const updateData: any = {
         ...restOfBody,
         defaultFormatId,
-        defaultRoleId
+        defaultRoleId,
+        defaultPromptTemplateId
       };
 
       const workspace = await prisma.workspace.update({
@@ -132,7 +142,8 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
         data: updateData,
         include: {
           defaultFormat: true,
-          defaultRole: true
+          defaultRole: true,
+          defaultPromptTemplate: true
         }
       });
 

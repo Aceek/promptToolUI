@@ -8,6 +8,7 @@ import { roleRoutes } from './routes/roles';
 import { settingRoutes } from './routes/settings';
 import { promptRoutes } from './routes/prompt';
 import { internalRoutes } from './routes/internal';
+import { promptTemplateRoutes } from './routes/promptTemplates';
 import { setupWebSocket } from './services/websocket';
 import { logger } from './services/logger';
 
@@ -49,6 +50,7 @@ async function buildServer() {
   await fastify.register(settingRoutes, { prefix: '/api/settings' });
   await fastify.register(promptRoutes, { prefix: '/api/prompt' });
   await fastify.register(internalRoutes, { prefix: '/api/internal' });
+  await fastify.register(promptTemplateRoutes, { prefix: '/api/prompt-templates' });
 
   // Health check
   fastify.get('/health', async () => {

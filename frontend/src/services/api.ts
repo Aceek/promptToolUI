@@ -47,6 +47,7 @@ export const workspaceApi = {
     path: string;
     defaultFormatId?: string;
     defaultRoleId?: string;
+    defaultPromptTemplateId?: string;
     ignorePatterns?: string[];
     projectInfo?: string;
   }): Promise<Workspace> =>
@@ -62,6 +63,7 @@ export const workspaceApi = {
     lastFinalRequest?: string;
     defaultFormatId?: string | null;
     defaultRoleId?: string | null;
+    defaultPromptTemplateId?: string | null;
     ignorePatterns?: string[];
     projectInfo?: string;
   }): Promise<Workspace> =>
@@ -169,10 +171,43 @@ export const promptApi = {
     roleId?: string;
     includeProjectInfo: boolean;
     includeStructure: boolean;
+    promptTemplateId?: string;
   }): Promise<{ prompt: string }> =>
     fetchApi('/api/prompt/generate', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+};
+
+// Prompt Template API
+export const promptTemplateApi = {
+  getAll: (): Promise<any[]> => 
+    fetchApi('/api/prompt-templates'),
+
+  getById: (id: string): Promise<any> => 
+    fetchApi(`/api/prompt-templates/${id}`),
+
+  create: (data: {
+    name: string;
+    content: string;
+  }): Promise<any> =>
+    fetchApi('/api/prompt-templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: {
+    name?: string;
+    content?: string;
+  }): Promise<any> =>
+    fetchApi(`/api/prompt-templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string): Promise<void> =>
+    fetchApi(`/api/prompt-templates/${id}`, {
+      method: 'DELETE',
     }),
 };
 

@@ -6,6 +6,7 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:auto": "chmod +x scripts/dev-start.sh && ./scripts/dev-start.sh",
     "build": "tsc",
     "start": "node dist/index.js",
     "db:generate": "prisma generate",

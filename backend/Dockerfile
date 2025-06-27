@@ -22,6 +22,10 @@ COPY --chown=node:node . .
 # Générer le client Prisma
 RUN npx prisma generate
 
+# Copier et rendre exécutable le script de démarrage
+COPY --chown=node:node scripts/start.sh ./scripts/
+RUN chmod +x ./scripts/start.sh
+
 # Exposer le port et définir la commande de démarrage
 EXPOSE 3001
-CMD ["npm", "run", "dev"]
+CMD ["./scripts/start.sh"]

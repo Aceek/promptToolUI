@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 // Importez vos services API
-import { workspaceApi, formatApi, roleApi } from '../services/api';
+import { workspaceApi, formatApi, roleApi, promptTemplateApi } from '../services/api';
 // Les types Workspace, Format, Role, FileNode sont déjà définis dans ce fichier, pas besoin de les importer.
 
 export interface Workspace {
@@ -14,8 +14,10 @@ export interface Workspace {
   projectInfo?: string | null;
   defaultFormatId?: string | null;
   defaultRoleId?: string | null;
+  defaultPromptTemplateId?: string | null;
   defaultFormat?: Format | null;
   defaultRole?: Role | null;
+  defaultPromptTemplate?: PromptTemplate | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +35,15 @@ export interface Role {
   id: string;
   name: string;
   description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PromptTemplate {
+  id: string;
+  name: string;
+  content: string;
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -57,6 +68,7 @@ export interface AppState {
   finalRequest: string;
   selectedFormatId: string | null;
   selectedRoleId: string | null;
+  selectedPromptTemplateId: string | null;
   generatedPrompt: string;
   includeProjectInfo: boolean;
   includeStructure: boolean;
@@ -65,6 +77,7 @@ export interface AppState {
   workspaces: Workspace[];
   formats: Format[];
   roles: Role[];
+  promptTemplates: PromptTemplate[];
   
   // UI state
   isLoading: boolean;
@@ -77,12 +90,14 @@ export interface AppState {
   setFinalRequest: (request: string) => void;
   setSelectedFormat: (formatId: string | null) => void;
   setSelectedRole: (roleId: string | null) => void;
+  setSelectedPromptTemplate: (templateId: string | null) => void;
   setGeneratedPrompt: (prompt: string) => void;
   setIncludeProjectInfo: (value: boolean) => void;
   setIncludeStructure: (value: boolean) => void;
   setWorkspaces: (workspaces: Workspace[]) => void;
   setFormats: (formats: Format[]) => void;
   setRoles: (roles: Role[]) => void;
+  setPromptTemplates: (templates: PromptTemplate[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   
@@ -90,15 +105,18 @@ export interface AppState {
   fetchWorkspaces: () => Promise<void>;
   fetchFormats: () => Promise<void>;
   fetchRoles: () => Promise<void>;
+  fetchPromptTemplates: () => Promise<void>;
   
   // Computed
   getSelectedFormat: () => Format | null;
   getSelectedRole: () => Role | null;
+  getSelectedPromptTemplate: () => PromptTemplate | null;
   
   // Aliases for compatibility
   selectedWorkspace: Workspace | null;
   selectedFormat: Format | null;
   selectedRole: Role | null;
+  selectedPromptTemplate: PromptTemplate | null;
   setSelectedWorkspace: (workspace: Workspace | null) => void;
 }
 
@@ -113,12 +131,14 @@ export const useAppStore = create<AppState>()(
       finalRequest: '',
       selectedFormatId: null,
       selectedRoleId: null,
+      selectedPromptTemplateId: null,
       generatedPrompt: '',
       includeProjectInfo: true,
       includeStructure: true,
       workspaces: [],
       formats: [],
       roles: [],
+      promptTemplates: [],
       isLoading: false,
       error: null,
       
@@ -131,6 +151,7 @@ export const useAppStore = create<AppState>()(
           finalRequest: workspace?.lastFinalRequest || '',
           selectedFormatId: workspace?.defaultFormatId || null,
           selectedRoleId: workspace?.defaultRoleId || null,
+          selectedPromptTemplateId: workspace?.defaultPromptTemplateId || null,
           selectedWorkspace: workspace
         });
       },
@@ -153,6 +174,12 @@ export const useAppStore = create<AppState>()(
         set({ selectedRoleId: roleId, selectedRole: role });
       },
       
+      setSelectedPromptTemplate: (templateId) => {
+        const { promptTemplates } = get();
+        const template = promptTemplates.find(t => t.id === templateId) || null;
+        set({ selectedPromptTemplateId: templateId, selectedPromptTemplate: template });
+      },
+      
       setGeneratedPrompt: (prompt) => set({ generatedPrompt: prompt }),
 
       setIncludeProjectInfo: (value) => set({ includeProjectInfo: value }),
@@ -172,6 +199,12 @@ export const useAppStore = create<AppState>()(
         set({ roles, selectedRole });
       },
       
+      setPromptTemplates: (templates) => {
+        const { selectedPromptTemplateId } = get();
+        const selectedPromptTemplate = templates.find(t => t.id === selectedPromptTemplateId) || null;
+        set({ promptTemplates: templates, selectedPromptTemplate });
+      },
+      
       setLoading: (loading) => set({ isLoading: loading }),
       
       setError: (error) => set({ error }),
@@ -185,6 +218,11 @@ export const useAppStore = create<AppState>()(
       getSelectedRole: () => {
         const { roles, selectedRoleId } = get();
         return roles.find(r => r.id === selectedRoleId) || null;
+      },
+      
+      getSelectedPromptTemplate: () => {
+        const { promptTemplates, selectedPromptTemplateId } = get();
+        return promptTemplates.find(t => t.id === selectedPromptTemplateId) || null;
       },
       
       // API Actions
@@ -222,10 +260,22 @@ export const useAppStore = create<AppState>()(
         }
       },
       
+      fetchPromptTemplates: async () => {
+        try {
+          // Utilisez le service API
+          const templates = await promptTemplateApi.getAll();
+          set({ promptTemplates: templates });
+        } catch (error) {
+          // Affichez l'erreur pour un meilleur débogage
+          console.error('Failed to fetch prompt templates:', error);
+        }
+      },
+      
       // Computed aliases for compatibility
       selectedWorkspace: null as Workspace | null,
       selectedFormat: null as Format | null,
       selectedRole: null as Role | null,
+      selectedPromptTemplate: null as PromptTemplate | null,
       
       setSelectedWorkspace: (workspace) => {
         set({
@@ -235,6 +285,7 @@ export const useAppStore = create<AppState>()(
           finalRequest: workspace?.lastFinalRequest || '',
           selectedFormatId: workspace?.defaultFormatId || null,
           selectedRoleId: workspace?.defaultRoleId || null,
+          selectedPromptTemplateId: workspace?.defaultPromptTemplateId || null,
           selectedWorkspace: workspace
         });
       },
@@ -246,6 +297,7 @@ export const useAppStore = create<AppState>()(
         finalRequest: state.finalRequest,
         selectedFormatId: state.selectedFormatId,
         selectedRoleId: state.selectedRoleId,
+        selectedPromptTemplateId: state.selectedPromptTemplateId,
         includeProjectInfo: state.includeProjectInfo,
         includeStructure: state.includeStructure,
       }),

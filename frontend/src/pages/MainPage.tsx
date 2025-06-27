@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore, FileNode } from '../store/useAppStore';
-import { promptApi, workspaceApi } from '../services/api';
+import { promptApi, workspaceApi, promptTemplateApi } from '../services/api';
 import { websocketService } from '../services/websocket';
 import { FileTree } from '../components';
 
 const MainPage = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingStructure, setIsLoadingStructure] = useState(false);
+  const [promptTemplates, setPromptTemplates] = useState<any[]>([]);
+  const [selectedPromptTemplate, setSelectedPromptTemplate] = useState<string | null>(null);
 
   const {
     workspaces,
@@ -59,7 +61,22 @@ const MainPage = () => {
     fetchWorkspaces();
     fetchFormats();
     fetchRoles();
+    fetchPromptTemplates();
   }, [fetchWorkspaces, fetchFormats, fetchRoles]);
+
+  const fetchPromptTemplates = async () => {
+    try {
+      const data = await promptTemplateApi.getAll();
+      setPromptTemplates(data);
+      // Set the default template if available
+      const defaultTemplate = data.find((template: any) => template.isDefault);
+      if (defaultTemplate) {
+        setSelectedPromptTemplate(defaultTemplate.id);
+      }
+    } catch (error) {
+      console.error('Error fetching prompt templates:', error);
+    }
+  };
   
   useEffect(() => {
     loadFileStructure();
@@ -129,6 +146,7 @@ const MainPage = () => {
         selectedFilePaths: selectedFiles.length > 0 ? selectedFiles : undefined,
         formatId: currentFormat?.id,
         roleId: currentRole?.id,
+        promptTemplateId: selectedPromptTemplate || undefined,
       };
 
       const data = await promptApi.generate(requestData);
@@ -247,6 +265,23 @@ const MainPage = () => {
                 {roles.map((role) => (
                   <option key={role.id} value={role.id}>
                     {role.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Template de Prompt
+              </label>
+              <select
+                className="select"
+                value={selectedPromptTemplate || ''}
+                onChange={(e) => setSelectedPromptTemplate(e.target.value || null)}
+              >
+                <option value="">Sélectionner un template</option>
+                {promptTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name} {template.isDefault && '(Par défaut)'}
                   </option>
                 ))}
               </select>

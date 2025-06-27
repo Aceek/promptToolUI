@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import fs from 'fs/promises';
+import path from 'path';
 
 const prisma = new PrismaClient();
 
@@ -279,6 +281,32 @@ Approach:
 5. Provide clear architectural guidance`
     }
   });
+
+  // Seed default prompt template by reading from the file
+  console.log('Seeding default prompt template from file...');
+  try {
+    // Build the path to the template file
+    const templatePath = path.join(__dirname, '..', 'prompts', 'system-template.njk');
+    // Read the file content
+    const defaultTemplateContent = await fs.readFile(templatePath, 'utf-8');
+
+    await prisma.promptTemplate.upsert({
+      where: { name: 'Default System Prompt' },
+      // Important: Update the content if the template already exists
+      update: {
+        content: defaultTemplateContent.trim(),
+      },
+      create: {
+        name: 'Default System Prompt',
+        content: defaultTemplateContent.trim(),
+        isDefault: true,
+      },
+    });
+    console.log('✅ Default prompt template seeded successfully.');
+
+  } catch (error) {
+    console.error('❌ Failed to seed default prompt template from file. Make sure prompts/system-template.njk exists.', error);
+  }
 
   console.log('✅ Database seeded successfully!');
   console.log(`Created formats: ${markdownFormat.name}, ${structuredFormat.name}, ${jsonFormat.name}`);

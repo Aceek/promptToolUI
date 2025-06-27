@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAppStore, Workspace } from '../../store/useAppStore';
-import { workspaceApi } from '../../services/api';
+import { workspaceApi, promptTemplateApi } from '../../services/api';
 
 const initialFormState = {
   name: '',
   path: '',
   defaultFormatId: '',
   defaultRoleId: '',
+  defaultPromptTemplateId: '',
   projectInfo: '',
 };
 
@@ -14,6 +15,7 @@ const WorkspacesPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
   const [formData, setFormData] = useState(initialFormState);
+  const [promptTemplates, setPromptTemplates] = useState<any[]>([]);
 
   const { workspaces, formats, roles, fetchWorkspaces, fetchFormats, fetchRoles } = useAppStore();
 
@@ -21,7 +23,17 @@ const WorkspacesPage = () => {
     fetchWorkspaces();
     fetchFormats();
     fetchRoles();
+    fetchPromptTemplates();
   }, [fetchWorkspaces, fetchFormats, fetchRoles]);
+
+  const fetchPromptTemplates = async () => {
+    try {
+      const data = await promptTemplateApi.getAll();
+      setPromptTemplates(data);
+    } catch (error) {
+      console.error('Error fetching prompt templates:', error);
+    }
+  };
 
   const resetForm = () => {
     setEditingWorkspace(null);
@@ -42,6 +54,7 @@ const WorkspacesPage = () => {
       path: workspace.path,
       defaultFormatId: workspace.defaultFormatId || '',
       defaultRoleId: workspace.defaultRoleId || '',
+      defaultPromptTemplateId: workspace.defaultPromptTemplateId || '',
       projectInfo: workspace.projectInfo || '',
     });
     setIsFormOpen(true);
@@ -55,6 +68,7 @@ const WorkspacesPage = () => {
           ...formData,
           defaultFormatId: formData.defaultFormatId || undefined,
           defaultRoleId: formData.defaultRoleId || undefined,
+          defaultPromptTemplateId: formData.defaultPromptTemplateId || undefined,
         });
       } else {
         // Create
@@ -62,6 +76,7 @@ const WorkspacesPage = () => {
           ...formData,
           defaultFormatId: formData.defaultFormatId || undefined,
           defaultRoleId: formData.defaultRoleId || undefined,
+          defaultPromptTemplateId: formData.defaultPromptTemplateId || undefined,
         });
       }
       resetForm();
@@ -134,6 +149,13 @@ const WorkspacesPage = () => {
                       {roles.map((role) => (<option key={role.id} value={role.id}>{role.name}</option>))}
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Template de Prompt par défaut</label>
+                    <select className="select" value={formData.defaultPromptTemplateId} onChange={(e) => setFormData({ ...formData, defaultPromptTemplateId: e.target.value })}>
+                      <option value="">Aucun</option>
+                      {promptTemplates.map((template) => (<option key={template.id} value={template.id}>{template.name} {template.isDefault && '(Par défaut)'}</option>))}
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Informations sur le projet</label>
@@ -165,6 +187,7 @@ const WorkspacesPage = () => {
                     <div className="flex space-x-4 mt-2 text-sm text-gray-500">
                       {workspace.defaultFormat && (<span>Format: <span className='font-medium text-gray-700'>{workspace.defaultFormat.name}</span></span>)}
                       {workspace.defaultRole && (<span>Rôle: <span className='font-medium text-gray-700'>{workspace.defaultRole.name}</span></span>)}
+                      {workspace.defaultPromptTemplate && (<span>Template: <span className='font-medium text-gray-700'>{workspace.defaultPromptTemplate.name}</span></span>)}
                     </div>
                   </div>
                   <div className="flex space-x-2 flex-shrink-0">

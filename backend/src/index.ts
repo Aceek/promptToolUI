@@ -13,7 +13,16 @@ const prisma = new PrismaClient();
 
 async function buildServer() {
   const fastify = Fastify({
-    logger: true
+    logger: process.env.NODE_ENV !== 'production' ? {
+      transport: {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'SYS:HH:MM:ss',
+          ignore: 'pid,hostname',
+        },
+      },
+    } : true,
   });
 
   // Register CORS

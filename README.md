@@ -46,14 +46,14 @@ cd ai-prompt-tool-v2
 
 2. **Démarrer tous les services**
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 3. **Initialiser la base de données**
 ```bash
 # Attendre que PostgreSQL soit prêt, puis :
-docker-compose exec backend npm run db:push
-docker-compose exec backend npm run db:seed
+docker compose exec backend npm run db:push
+docker compose exec backend npm run db:seed
 ```
 
 4. **Accéder à l'application**
@@ -100,7 +100,7 @@ ai-prompt-tool-v2/
 │   │   ├── store/          # Gestion d'état Zustand
 │   │   └── main.tsx        # Point d'entrée
 │   └── package.json
-├── docker-compose.yml      # Configuration Docker
+├── docker compose.yml      # Configuration Docker
 └── README.md
 ```
 

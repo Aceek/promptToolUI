@@ -112,7 +112,7 @@ Lit le contenu de plusieurs fichiers.
 
 ## Intégration avec Docker
 
-Pour utiliser cet agent avec votre application Docker, ajoutez cette configuration à votre `docker-compose.yml` :
+Pour utiliser cet agent avec votre application Docker, ajoutez cette configuration à votre `docker compose.yml` :
 
 ```yaml
 services:

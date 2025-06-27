@@ -46,6 +46,15 @@ export interface PromptTemplate {
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
+  role_intro?: string;
+  task_header?: string;
+  task_static_intro?: string;
+  task_format_reminder?: string;
+  format_header?: string;
+  project_info_header?: string;
+  structure_header?: string;
+  code_content_header?: string;
+  file_separator?: string;
 }
 
 export interface FileNode {

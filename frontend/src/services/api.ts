@@ -189,7 +189,15 @@ export const promptTemplateApi = {
 
   create: (data: {
     name: string;
-    content: string;
+    role_intro?: string;
+    task_header?: string;
+    task_static_intro?: string;
+    task_format_reminder?: string;
+    format_header?: string;
+    project_info_header?: string;
+    structure_header?: string;
+    code_content_header?: string;
+    file_separator?: string;
   }): Promise<any> =>
     fetchApi('/api/prompt-templates', {
       method: 'POST',
@@ -198,7 +206,15 @@ export const promptTemplateApi = {
 
   update: (id: string, data: {
     name?: string;
-    content?: string;
+    role_intro?: string;
+    task_header?: string;
+    task_static_intro?: string;
+    task_format_reminder?: string;
+    format_header?: string;
+    project_info_header?: string;
+    structure_header?: string;
+    code_content_header?: string;
+    file_separator?: string;
   }): Promise<any> =>
     fetchApi(`/api/prompt-templates/${id}`, {
       method: 'PUT',

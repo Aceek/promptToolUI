@@ -41,6 +41,10 @@ PROJECT INFORMATION
 ====================================
 Project Name: {{ project_name }}
 Workspace Path: {{ workspace_path }}
+{%- if project_info and project_info.trim() %}
+
+{{ project_info }}
+{%- endif %}
 {%- endif %}
 
 {%- if include_structure %}

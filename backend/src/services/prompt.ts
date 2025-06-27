@@ -2,30 +2,18 @@ import * as path from 'path';
 import { detectLanguage } from './structure.js';
 import { AgentService } from './agentService.js';
 import { TemplateService } from './templateService.js';
+import { Workspace, Format, Role } from '@prisma/client';
+
 
 export interface PromptGenerationOptions {
-  workspace: {
-    id: string;
-    name: string;
-    path: string;
-    selectedFiles: string[];
-    lastFinalRequest?: string | null;
-    ignorePatterns: string[];
-  };
-  format?: {
-    id: string;
-    name: string;
-    instructions: string;
-    examples: string;
-  } | null;
-  role?: {
-    id: string;
-    name: string;
-    description: string;
-  } | null;
+  workspace: Workspace;
+  format?: Format | null;
+  role?: Role | null;
   finalRequest?: string;
   selectedFilePaths?: string[];
   ignorePatterns: string[];
+  includeProjectInfo: boolean;
+  includeStructure: boolean;
 }
 
 export interface CodeFile {
@@ -41,7 +29,9 @@ export async function generatePrompt(options: PromptGenerationOptions): Promise<
     role,
     finalRequest,
     selectedFilePaths = [],
-    ignorePatterns
+    ignorePatterns,
+    includeProjectInfo,
+    includeStructure
   } = options;
 
   try {
@@ -55,8 +45,10 @@ export async function generatePrompt(options: PromptGenerationOptions): Promise<
       ? await readSelectedFiles(workspace.path, selectedFilePaths, ignorePatterns)
       : [];
 
-    // Generate project structure (always included for context)
-    const projectStructure = await generateProjectStructure(workspace.path, ignorePatterns);
+    // Generate project structure only if enabled
+    const projectStructure = includeStructure
+      ? await generateProjectStructure(workspace.path, ignorePatterns)
+      : '';
 
     // Parse format instructions and examples only if format is provided
     const formatInstructions = format ? parseFormatInstructions(format.instructions) : [];
@@ -64,12 +56,12 @@ export async function generatePrompt(options: PromptGenerationOptions): Promise<
 
     // Prepare template context with conditional sections
     const templateContext = {
-      // Conditional sections based on what's provided
+      // Conditional sections based on what's provided and UI settings
       include_role_and_expertise: !!role,
       include_final_request: !!finalRequest && finalRequest.trim() !== '',
       include_format_instructions: !!format,
-      include_project_info: true, // Always include project info
-      include_structure: true, // Always include structure for context
+      include_project_info: includeProjectInfo,
+      include_structure: includeStructure,
       include_code_content: codeFiles.length > 0,
 
       // Data (with fallbacks for optional fields)
@@ -80,6 +72,7 @@ export async function generatePrompt(options: PromptGenerationOptions): Promise<
       format_examples: formatExamples,
       project_name: workspace.name,
       workspace_path: workspace.path,
+      project_info: (workspace as any).projectInfo || '',
       project_structure: projectStructure,
       code_files: codeFiles
     };

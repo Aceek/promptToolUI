@@ -11,6 +11,7 @@ export interface Workspace {
   selectedFiles: string[];
   lastFinalRequest?: string | null;
   ignorePatterns: string[];
+  projectInfo?: string | null;
   defaultFormatId?: string | null;
   defaultRoleId?: string | null;
   defaultFormat?: Format | null;
@@ -57,6 +58,8 @@ export interface AppState {
   selectedFormatId: string | null;
   selectedRoleId: string | null;
   generatedPrompt: string;
+  includeProjectInfo: boolean;
+  includeStructure: boolean;
   
   // Data
   workspaces: Workspace[];
@@ -75,6 +78,8 @@ export interface AppState {
   setSelectedFormat: (formatId: string | null) => void;
   setSelectedRole: (roleId: string | null) => void;
   setGeneratedPrompt: (prompt: string) => void;
+  setIncludeProjectInfo: (value: boolean) => void;
+  setIncludeStructure: (value: boolean) => void;
   setWorkspaces: (workspaces: Workspace[]) => void;
   setFormats: (formats: Format[]) => void;
   setRoles: (roles: Role[]) => void;
@@ -109,6 +114,8 @@ export const useAppStore = create<AppState>()(
       selectedFormatId: null,
       selectedRoleId: null,
       generatedPrompt: '',
+      includeProjectInfo: true,
+      includeStructure: true,
       workspaces: [],
       formats: [],
       roles: [],
@@ -147,6 +154,9 @@ export const useAppStore = create<AppState>()(
       },
       
       setGeneratedPrompt: (prompt) => set({ generatedPrompt: prompt }),
+
+      setIncludeProjectInfo: (value) => set({ includeProjectInfo: value }),
+      setIncludeStructure: (value) => set({ includeStructure: value }),
       
       setWorkspaces: (workspaces) => set({ workspaces }),
       
@@ -236,6 +246,8 @@ export const useAppStore = create<AppState>()(
         finalRequest: state.finalRequest,
         selectedFormatId: state.selectedFormatId,
         selectedRoleId: state.selectedRoleId,
+        includeProjectInfo: state.includeProjectInfo,
+        includeStructure: state.includeStructure,
       }),
     }
   )

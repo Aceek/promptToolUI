@@ -55,16 +55,25 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
       defaultFormatId?: string;
       defaultRoleId?: string;
       ignorePatterns?: string[];
+      projectInfo?: string;
     }
   }>('/', async (request, reply) => {
     try {
-      const { name, path, defaultFormatId, defaultRoleId, ignorePatterns = [] } = request.body;
+      const {
+        name,
+        path,
+        defaultFormatId,
+        defaultRoleId,
+        ignorePatterns = [],
+        projectInfo
+      } = request.body;
 
       const data: any = {
         name,
         path,
         ignorePatterns,
-        selectedFiles: []
+        selectedFiles: [],
+        projectInfo
       };
 
       if (defaultFormatId) {
@@ -102,14 +111,21 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
       path?: string;
       selectedFiles?: string[];
       lastFinalRequest?: string;
-      defaultFormatId?: string;
-      defaultRoleId?: string;
+      defaultFormatId?: string | null;
+      defaultRoleId?: string | null;
       ignorePatterns?: string[];
+      projectInfo?: string;
     }
   }>('/:id', async (request, reply) => {
     try {
       const { id } = request.params;
-      const updateData = request.body;
+      const { defaultFormatId, defaultRoleId, ...restOfBody } = request.body;
+      
+      const updateData: any = {
+        ...restOfBody,
+        defaultFormatId,
+        defaultRoleId
+      };
 
       const workspace = await prisma.workspace.update({
         where: { id },

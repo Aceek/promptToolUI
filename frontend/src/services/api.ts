@@ -21,8 +21,14 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new ApiError(response.status, errorText || response.statusText);
+    const errorBody = await response.json().catch(() => ({ error: 'Invalid JSON response' }));
+    const errorMessage = errorBody.error || response.statusText;
+    throw new ApiError(response.status, errorMessage);
+  }
+
+  // Handle empty responses for methods like DELETE
+  if (response.status === 204) {
+    return {} as T;
   }
 
   return response.json();
@@ -42,6 +48,7 @@ export const workspaceApi = {
     defaultFormatId?: string;
     defaultRoleId?: string;
     ignorePatterns?: string[];
+    projectInfo?: string;
   }): Promise<Workspace> =>
     fetchApi('/api/workspaces', {
       method: 'POST',
@@ -53,9 +60,10 @@ export const workspaceApi = {
     path?: string;
     selectedFiles?: string[];
     lastFinalRequest?: string;
-    defaultFormatId?: string;
-    defaultRoleId?: string;
+    defaultFormatId?: string | null;
+    defaultRoleId?: string | null;
     ignorePatterns?: string[];
+    projectInfo?: string;
   }): Promise<Workspace> =>
     fetchApi(`/api/workspaces/${id}`, {
       method: 'PUT',
@@ -159,6 +167,8 @@ export const promptApi = {
     selectedFilePaths?: string[];
     formatId?: string;
     roleId?: string;
+    includeProjectInfo: boolean;
+    includeStructure: boolean;
   }): Promise<{ prompt: string }> =>
     fetchApi('/api/prompt/generate', {
       method: 'POST',

@@ -50,10 +50,20 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
       selectedFilePaths?: string[];
       formatId?: string;
       roleId?: string;
+      includeProjectInfo: boolean;
+      includeStructure: boolean;
     }
   }>('/generate', async (request, reply) => {
     try {
-      const { workspaceId, finalRequest = '', selectedFilePaths = [], formatId, roleId } = request.body;
+      const { 
+        workspaceId, 
+        finalRequest = '', 
+        selectedFilePaths = [], 
+        formatId, 
+        roleId,
+        includeProjectInfo,
+        includeStructure 
+      } = request.body;
 
       // Fetch workspace (required)
       const workspace = await prisma.workspace.findUnique({
@@ -122,7 +132,9 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
         role,
         finalRequest,
         selectedFilePaths,
-        ignorePatterns: allIgnorePatterns
+        ignorePatterns: allIgnorePatterns,
+        includeProjectInfo,
+        includeStructure,
       });
 
       fastify.appLogger.business({

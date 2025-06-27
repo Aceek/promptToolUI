@@ -4,10 +4,7 @@ const Layout = () => {
   const location = useLocation();
 
   const isActive = (path: string) => {
-    // Handle settings routes to keep the main settings link active
-    if (path.startsWith('/settings') && path !== '/settings') {
-      return location.pathname.startsWith('/settings');
-    }
+    // Exact match for all routes
     return location.pathname === path;
   };
 

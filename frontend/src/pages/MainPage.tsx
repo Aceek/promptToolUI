@@ -18,6 +18,8 @@ const MainPage = () => {
     finalRequest,
     generatedPrompt,
     fileStructure,
+    includeProjectInfo,
+    includeStructure,
     setSelectedWorkspace,
     setSelectedFormat,
     setSelectedRole,
@@ -25,6 +27,8 @@ const MainPage = () => {
     setGeneratedPrompt,
     setFileStructure,
     setSelectedFiles,
+    setIncludeProjectInfo,
+    setIncludeStructure,
     fetchWorkspaces,
     fetchFormats,
     fetchRoles,
@@ -65,7 +69,6 @@ const MainPage = () => {
     const currentFormat = getSelectedFormat();
     const currentRole = getSelectedRole();
     
-    // Seul l'espace de travail est obligatoire
     if (!selectedWorkspace) {
       alert('Veuillez sélectionner un espace de travail');
       return;
@@ -73,36 +76,30 @@ const MainPage = () => {
 
     setIsGenerating(true);
     try {
-      // Sauvegarder les sélections dans le workspace
       await workspaceApi.update(selectedWorkspace.id, {
         selectedFiles,
         lastFinalRequest: finalRequest,
       });
 
-      // Préparer les données pour l'API (tout est optionnel sauf workspaceId)
-      const requestData: any = {
+      const requestData = {
         workspaceId: selectedWorkspace.id,
+        includeProjectInfo,
+        includeStructure,
+        finalRequest: finalRequest && finalRequest.trim() !== '' ? finalRequest : undefined,
+        selectedFilePaths: selectedFiles.length > 0 ? selectedFiles : undefined,
+        formatId: currentFormat?.id,
+        roleId: currentRole?.id,
       };
-
-      // Ajouter les champs optionnels seulement s'ils sont définis
-      if (finalRequest && finalRequest.trim() !== '') {
-        requestData.finalRequest = finalRequest;
-      }
-
-      if (selectedFiles.length > 0) {
-        requestData.selectedFilePaths = selectedFiles;
-      }
-
-      if (currentFormat) {
-        requestData.formatId = currentFormat.id;
-      }
-
-      if (currentRole) {
-        requestData.roleId = currentRole.id;
-      }
 
       const data = await promptApi.generate(requestData);
       setGeneratedPrompt(data.prompt);
+      
+      try {
+        await navigator.clipboard.writeText(data.prompt);
+        console.log('Prompt copié automatiquement dans le presse-papiers');
+      } catch (error) {
+        console.warn('Impossible de copier automatiquement le prompt:', error);
+      }
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur lors de la génération du prompt');
@@ -195,6 +192,36 @@ const MainPage = () => {
             </div>
           </div>
 
+          {/* Options de configuration du prompt */}
+          {selectedWorkspace && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-md">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="includeProjectInfo"
+                  checked={includeProjectInfo}
+                  onChange={(e) => setIncludeProjectInfo(e.target.checked)}
+                  className="mr-2 h-4 w-4"
+                />
+                <label htmlFor="includeProjectInfo" className="text-sm font-medium text-gray-700">
+                  Inclure les informations du projet
+                </label>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="includeStructure"
+                  checked={includeStructure}
+                  onChange={(e) => setIncludeStructure(e.target.checked)}
+                  className="mr-2 h-4 w-4"
+                />
+                <label htmlFor="includeStructure" className="text-sm font-medium text-gray-700">
+                  Inclure la structure du projet
+                </label>
+              </div>
+            </div>
+          )}
+
           {/* Demande finale */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -221,7 +248,7 @@ const MainPage = () => {
                   Chargement de la structure...
                 </div>
               ) : fileStructure.length > 0 ? (
-                <div className="border border-gray-200 rounded-md p-4 max-h-96 overflow-auto bg-gray-50">
+                <div className="border border-gray-200 rounded-md p-4 max-h-96 overflow-auto bg-gray-50 scrollbar-thin">
                   <FileTree
                     nodes={fileStructure}
                     selectedFiles={selectedFiles}
@@ -267,7 +294,7 @@ const MainPage = () => {
                   📋 Copier
                 </button>
               </div>
-              <pre className="bg-gray-50 border border-gray-200 rounded-md p-4 text-sm overflow-auto whitespace-pre-wrap" style={{ maxHeight: 'none', height: 'auto' }}>
+              <pre className="bg-gray-50 border border-gray-200 rounded-md p-4 text-sm overflow-auto whitespace-pre-wrap scrollbar-thin" style={{ maxHeight: '600px' }}>
                 {generatedPrompt}
               </pre>
             </div>

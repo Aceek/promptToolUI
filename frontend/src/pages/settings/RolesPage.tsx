@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+// Importez le service API
+import { roleApi } from '../../services/api';
 
 const RolesPage = () => {
   const [isCreating, setIsCreating] = useState(false);
@@ -26,20 +28,10 @@ const RolesPage = () => {
 
   const handleCreate = async () => {
     try {
-      const response = await fetch('/api/roles', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (response.ok) {
-        resetForm();
-        fetchRoles();
-      } else {
-        alert('Erreur lors de la création du rôle');
-      }
+      // Utilisez le service API
+      await roleApi.create(formData);
+      resetForm();
+      fetchRoles(); // Rafraîchit la liste
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur lors de la création du rôle');
@@ -48,25 +40,28 @@ const RolesPage = () => {
 
   const handleUpdate = async () => {
     if (!editingRole) return;
-
     try {
-      const response = await fetch(`/api/roles/${editingRole}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (response.ok) {
-        resetForm();
-        fetchRoles();
-      } else {
-        alert('Erreur lors de la mise à jour du rôle');
-      }
+      // Utilisez le service API
+      await roleApi.update(editingRole, formData);
+      resetForm();
+      fetchRoles(); // Rafraîchit la liste
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur lors de la mise à jour du rôle');
+    }
+  };
+  
+  const handleDelete = async (id: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce rôle ?')) {
+      return;
+    }
+    try {
+      // Utilisez le service API
+      await roleApi.delete(id);
+      fetchRoles(); // Rafraîchit la liste
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur lors de la suppression du rôle');
     }
   };
 
@@ -77,27 +72,6 @@ const RolesPage = () => {
     });
     setEditingRole(role.id);
     setIsCreating(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce rôle ?')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/roles/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        fetchRoles();
-      } else {
-        alert('Erreur lors de la suppression du rôle');
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la suppression du rôle');
-    }
   };
 
   return (

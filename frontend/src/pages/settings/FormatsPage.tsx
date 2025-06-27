@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+// Importez le service API
+import { formatApi } from '../../services/api';
 
 const FormatsPage = () => {
   const [isCreating, setIsCreating] = useState(false);
@@ -28,20 +30,10 @@ const FormatsPage = () => {
 
   const handleCreate = async () => {
     try {
-      const response = await fetch('/api/formats', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (response.ok) {
-        resetForm();
-        fetchFormats();
-      } else {
-        alert('Erreur lors de la création du format');
-      }
+      // Utilisez le service API
+      await formatApi.create(formData);
+      resetForm();
+      fetchFormats(); // Rafraîchit la liste
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur lors de la création du format');
@@ -50,25 +42,28 @@ const FormatsPage = () => {
 
   const handleUpdate = async () => {
     if (!editingFormat) return;
-
     try {
-      const response = await fetch(`/api/formats/${editingFormat}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (response.ok) {
-        resetForm();
-        fetchFormats();
-      } else {
-        alert('Erreur lors de la mise à jour du format');
-      }
+      // Utilisez le service API
+      await formatApi.update(editingFormat, formData);
+      resetForm();
+      fetchFormats(); // Rafraîchit la liste
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur lors de la mise à jour du format');
+    }
+  };
+  
+  const handleDelete = async (id: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce format ?')) {
+      return;
+    }
+    try {
+      // Utilisez le service API
+      await formatApi.delete(id);
+      fetchFormats(); // Rafraîchit la liste
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur lors de la suppression du format');
     }
   };
 
@@ -80,27 +75,6 @@ const FormatsPage = () => {
     });
     setEditingFormat(format.id);
     setIsCreating(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce format ?')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/formats/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        fetchFormats();
-      } else {
-        alert('Erreur lors de la suppression du format');
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la suppression du format');
-    }
   };
 
   return (

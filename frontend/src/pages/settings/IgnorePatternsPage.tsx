@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 
+// Importez le service API
+import { settingsApi } from '../../services/api';
+
 interface Settings {
   id: number;
   globalIgnorePatterns: string[];
@@ -17,12 +20,9 @@ const IgnorePatternsPage = () => {
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch('/api/settings');
-      if (response.ok) {
-        const data = await response.json();
-        setSettings(data);
-        setPatterns(data.globalIgnorePatterns || []);
-      }
+      const data = await settingsApi.get();
+      setSettings(data);
+      setPatterns(data.globalIgnorePatterns || []);
     } catch (error) {
       console.error('Erreur lors du chargement des paramètres:', error);
     } finally {
@@ -32,22 +32,9 @@ const IgnorePatternsPage = () => {
 
   const saveSettings = async () => {
     try {
-      const response = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          globalIgnorePatterns: patterns
-        }),
-      });
-
-      if (response.ok) {
-        alert('Paramètres sauvegardés avec succès !');
-        fetchSettings();
-      } else {
-        alert('Erreur lors de la sauvegarde');
-      }
+      await settingsApi.update({ globalIgnorePatterns: patterns });
+      alert('Paramètres sauvegardés avec succès !');
+      fetchSettings();
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur lors de la sauvegarde');

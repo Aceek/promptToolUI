@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+// Importez vos services API
+import { workspaceApi, formatApi, roleApi } from '../services/api';
+// Les types Workspace, Format, Role, FileNode sont déjà définis dans ce fichier, pas besoin de les importer.
 
 export interface Workspace {
   id: string;
@@ -161,38 +164,33 @@ export const useAppStore = create<AppState>()(
       fetchWorkspaces: async () => {
         set({ isLoading: true, error: null });
         try {
-          const response = await fetch('/api/workspaces');
-          if (response.ok) {
-            const workspaces = await response.json();
-            set({ workspaces, isLoading: false });
-          } else {
-            set({ error: 'Failed to fetch workspaces', isLoading: false });
-          }
+          // Utilisez le service API
+          const workspaces = await workspaceApi.getAll();
+          set({ workspaces, isLoading: false });
         } catch (error) {
-          set({ error: 'Network error', isLoading: false });
+          console.error('Failed to fetch workspaces:', error);
+          set({ error: 'Failed to fetch workspaces', isLoading: false });
         }
       },
       
       fetchFormats: async () => {
         try {
-          const response = await fetch('/api/formats');
-          if (response.ok) {
-            const formats = await response.json();
-            set({ formats });
-          }
+          // Utilisez le service API
+          const formats = await formatApi.getAll();
+          set({ formats });
         } catch (error) {
+          // Affichez l'erreur pour un meilleur débogage
           console.error('Failed to fetch formats:', error);
         }
       },
       
       fetchRoles: async () => {
         try {
-          const response = await fetch('/api/roles');
-          if (response.ok) {
-            const roles = await response.json();
-            set({ roles });
-          }
+          // Utilisez le service API
+          const roles = await roleApi.getAll();
+          set({ roles });
         } catch (error) {
+           // Affichez l'erreur pour un meilleur débogage
           console.error('Failed to fetch roles:', error);
         }
       },

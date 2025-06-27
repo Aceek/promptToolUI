@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+// Importez le service API
+import { workspaceApi } from '../../services/api';
 
 const WorkspacesPage = () => {
   const [isCreating, setIsCreating] = useState(false);
@@ -21,31 +23,21 @@ const WorkspacesPage = () => {
 
   const handleCreate = async () => {
     try {
-      const response = await fetch('/api/workspaces', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...newWorkspace,
-          defaultFormatId: newWorkspace.defaultFormatId || undefined,
-          defaultRoleId: newWorkspace.defaultRoleId || undefined,
-        }),
+      // Utilisez le service API
+      await workspaceApi.create({
+        ...newWorkspace,
+        defaultFormatId: newWorkspace.defaultFormatId || undefined,
+        defaultRoleId: newWorkspace.defaultRoleId || undefined,
       });
-
-      if (response.ok) {
-        setNewWorkspace({
-          name: '',
-          path: '',
-          defaultFormatId: '',
-          defaultRoleId: '',
-          ignorePatterns: []
-        });
-        setIsCreating(false);
-        fetchWorkspaces();
-      } else {
-        alert('Erreur lors de la création de l\'espace de travail');
-      }
+      setNewWorkspace({
+        name: '',
+        path: '',
+        defaultFormatId: '',
+        defaultRoleId: '',
+        ignorePatterns: []
+      });
+      setIsCreating(false);
+      fetchWorkspaces();
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur lors de la création de l\'espace de travail');
@@ -56,17 +48,10 @@ const WorkspacesPage = () => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cet espace de travail ?')) {
       return;
     }
-
     try {
-      const response = await fetch(`/api/workspaces/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        fetchWorkspaces();
-      } else {
-        alert('Erreur lors de la suppression de l\'espace de travail');
-      }
+      // Utilisez le service API
+      await workspaceApi.delete(id);
+      fetchWorkspaces();
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur lors de la suppression de l\'espace de travail');

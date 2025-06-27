@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
+// Importez le service API
+import { promptApi } from '../services/api';
 
 const MainPage = () => {
   const [finalRequest, setFinalRequest] = useState('');
@@ -36,26 +38,14 @@ const MainPage = () => {
 
     setIsGenerating(true);
     try {
-      const response = await fetch('/api/prompt/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          workspaceId: selectedWorkspace.id,
-          finalRequest,
-          selectedFilePaths: selectedFiles,
-          formatId: selectedFormat.id,
-          roleId: selectedRole.id,
-        }),
+      const data = await promptApi.generate({
+        workspaceId: selectedWorkspace.id,
+        finalRequest,
+        selectedFilePaths: selectedFiles,
+        formatId: selectedFormat.id,
+        roleId: selectedRole.id,
       });
-
-      if (response.ok) {
-        const data = await response.text();
-        setGeneratedPrompt(data);
-      } else {
-        alert('Erreur lors de la génération du prompt');
-      }
+      setGeneratedPrompt(data.prompt);
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur lors de la génération du prompt');

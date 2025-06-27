@@ -1,6 +1,7 @@
 import * as path from 'path';
 import { detectLanguage } from './structure.js';
 import { AgentService } from './agentService.js';
+import { TemplateService } from './templateService.js'; // IMPORTANT: On ré-importe ce service !
 import { Workspace, Format, Role, PromptTemplate, PrismaClient } from '@prisma/client';
 import { renderString } from 'nunjucks';
 
@@ -39,17 +40,16 @@ export async function generatePrompt(options: PromptGenerationOptions): Promise<
   } = options;
 
   try {
-    // Step 1: Load the prompt template from database
-    let promptTemplate: PromptTemplate | null = null;
+    // Étape 1: Charger le template de données depuis la BDD
+    let templateData: PromptTemplate | null = null;
     if (promptTemplateId) {
-      promptTemplate = await prisma.promptTemplate.findUnique({ where: { id: promptTemplateId } });
+      templateData = await prisma.promptTemplate.findUnique({ where: { id: promptTemplateId } });
     }
-    // Fallback to default template if none found or provided
-    if (!promptTemplate) {
-      promptTemplate = await prisma.promptTemplate.findFirst({ where: { isDefault: true } });
+    if (!templateData) {
+      templateData = await prisma.promptTemplate.findFirst({ where: { isDefault: true } });
     }
-    if (!promptTemplate) {
-      throw new Error('No default prompt template found in the database.');
+    if (!templateData) {
+      throw new Error('No default prompt template found. Please seed the database.');
     }
 
     // Read selected files content only if files are selected
@@ -66,17 +66,17 @@ export async function generatePrompt(options: PromptGenerationOptions): Promise<
     const formatInstructions = format ? parseFormatInstructions(format.instructions) : [];
     const formatExamples = format ? parseFormatExamples(format.examples) : [];
 
-    // Prepare template context with conditional sections
+    // Étape 2: Préparer le contexte pour le template Nunjucks
     const templateContext = {
-      // Conditional sections based on what's provided and UI settings
+      // Les morceaux de texte personnalisables
+      ...templateData,
+      // Les données dynamiques de la requête
       include_role_and_expertise: !!role,
       include_final_request: !!finalRequest && finalRequest.trim() !== '',
       include_format_instructions: !!format,
       include_project_info: includeProjectInfo,
       include_structure: includeStructure,
       include_code_content: codeFiles.length > 0,
-
-      // Data (with fallbacks for optional fields)
       role_description: role?.description || '',
       final_request: finalRequest || '',
       format_name: format?.name || '',
@@ -88,9 +88,12 @@ export async function generatePrompt(options: PromptGenerationOptions): Promise<
       project_structure: projectStructure,
       code_files: codeFiles
     };
-
-    // Render the template using Nunjucks directly
-    const prompt = renderString(promptTemplate.content, templateContext);
+    
+    // Étape 3: Utiliser le service de template pour rendre le fichier .njk
+    const templateService = new TemplateService();
+    const mainTemplateString = await templateService.loadTemplate('system-template.njk');
+    const prompt = templateService.renderTemplate(mainTemplateString, templateContext);
+    
     return prompt;
 
   } catch (error) {

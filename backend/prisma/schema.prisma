@@ -66,8 +66,33 @@ model Role {
 model PromptTemplate {
   id        String   @id @default(cuid())
   name      String   @unique
-  content   String   @db.Text
   isDefault Boolean  @default(false)
+  
+  // -- Textes structurés pour chaque section du prompt --
+  // Chaque champ a une valeur par défaut pour un fonctionnement immédiat.
+
+  // Section: ROLE AND EXPERTISE
+  role_intro           String @default("You are an expert software engineer. Your persona:") @db.Text
+
+  // Section: DYNAMIC TASK
+  task_header          String @default("DYNAMIC TASK - USER REQUEST")
+  task_static_intro    String @default("[The following is the specific task you need to accomplish. While the rest of this prompt provides static context and guidelines, this section represents the dynamic user request that changes with each prompt generation.]") @db.Text
+  task_format_reminder String @default("Your response must strictly follow the format specified in the FORMAT INSTRUCTIONS section below. This format is crucial for proper processing of your response.") @db.Text
+
+  // Section: FORMAT INSTRUCTIONS
+  format_header        String @default("FORMAT INSTRUCTIONS")
+  
+  // Section: PROJECT INFORMATION
+  project_info_header  String @default("PROJECT INFORMATION")
+
+  // Section: PROJECT STRUCTURE
+  structure_header     String @default("PROJECT STRUCTURE")
+
+  // Section: CODE CONTENT
+  code_content_header  String @default("CODE CONTENT")
+  file_separator       String @default("---------------------------------------------------------------------------")
+
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -282,30 +282,22 @@ Approach:
     }
   });
 
-  // Seed default prompt template by reading from the file
-  console.log('Seeding default prompt template from file...');
-  try {
-    // Build the path to the template file
-    const templatePath = path.join(__dirname, '..', 'prompts', 'system-template.njk');
-    // Read the file content
-    const defaultTemplateContent = await fs.readFile(templatePath, 'utf-8');
-
-    await prisma.promptTemplate.upsert({
-      where: { name: 'Default System Prompt' },
-      // Important: Update the content if the template already exists
-      update: {
-        content: defaultTemplateContent.trim(),
-      },
-      create: {
+  // Seed default prompt template
+  console.log('Seeding default prompt template...');
+  // On vérifie s'il existe déjà pour ne pas écraser les modifications de l'utilisateur
+  const existingDefault = await prisma.promptTemplate.findFirst({ where: { isDefault: true } });
+  
+  if (!existingDefault) {
+    await prisma.promptTemplate.create({
+      data: {
         name: 'Default System Prompt',
-        content: defaultTemplateContent.trim(),
         isDefault: true,
+        // Tous les autres champs utiliseront leur valeur @default définie dans le schéma
       },
     });
-    console.log('✅ Default prompt template seeded successfully.');
-
-  } catch (error) {
-    console.error('❌ Failed to seed default prompt template from file. Make sure prompts/system-template.njk exists.', error);
+    console.log('✅ Default prompt template created.');
+  } else {
+    console.log('ℹ️ Default prompt template already exists.');
   }
 
   console.log('✅ Database seeded successfully!');

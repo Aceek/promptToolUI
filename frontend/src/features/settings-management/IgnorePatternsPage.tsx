@@ -1,82 +1,18 @@
-import { useState, useEffect } from 'react';
-
-// Importez le service API
-import { settingsApi } from '../../services/api';
-import { toastService } from '../../services/toastService';
-
-interface Settings {
-  id: number;
-  globalIgnorePatterns: string[];
-}
+import React from 'react';
+import { useIgnorePatternsPage } from './hooks/useIgnorePatternsPage';
 
 const IgnorePatternsPage = () => {
-  const [, setSettings] = useState<Settings | null>(null);
-  const [patterns, setPatterns] = useState<string[]>([]);
-  const [newPattern, setNewPattern] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    try {
-      const data = await settingsApi.get();
-      setSettings(data);
-      setPatterns(data.globalIgnorePatterns || []);
-    } catch (error) {
-      console.error('Erreur lors du chargement des paramètres:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const saveSettings = async () => {
-    const promise = settingsApi.update({ globalIgnorePatterns: patterns });
-    
-    toastService.promise(promise, {
-      loading: 'Sauvegarde en cours...',
-      success: 'Paramètres sauvegardés avec succès !',
-      error: 'Erreur lors de la sauvegarde',
-    });
-
-    try {
-      await promise;
-      fetchSettings();
-    } catch (error) {
-      console.error('Erreur:', error);
-    }
-  };
-
-  const addPattern = () => {
-    if (newPattern.trim() && !patterns.includes(newPattern.trim())) {
-      setPatterns([...patterns, newPattern.trim()]);
-      setNewPattern('');
-    }
-  };
-
-  const removePattern = (index: number) => {
-    setPatterns(patterns.filter((_, i) => i !== index));
-  };
-
-  const defaultPatterns = [
-    'node_modules/**',
-    '.git/**',
-    'dist/**',
-    'build/**',
-    '*.log',
-    '.env*',
-    '*.tmp',
-    '*.cache',
-    '.DS_Store',
-    'Thumbs.db'
-  ];
-
-  const addDefaultPattern = (pattern: string) => {
-    if (!patterns.includes(pattern)) {
-      setPatterns([...patterns, pattern]);
-    }
-  };
+  const {
+    patterns,
+    newPattern,
+    isLoading,
+    defaultPatterns,
+    setNewPattern,
+    addPattern,
+    removePattern,
+    addDefaultPattern,
+    saveSettings,
+  } = useIgnorePatternsPage();
 
   if (isLoading) {
     return (

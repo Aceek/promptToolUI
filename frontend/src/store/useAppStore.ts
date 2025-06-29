@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { workspaceApi, blockApi, compositionApi } from '../services/api';
+import { workspaceApi, blockApi, compositionApi, settingsApi } from '../api';
 
 // Nouveaux types pour l'architecture modulaire
 export interface PromptBlock {
@@ -59,6 +59,10 @@ export interface FileNode {
   children?: FileNode[];
 }
 
+interface Settings {
+  globalIgnorePatterns: string[];
+}
+
 interface ConfirmationState {
   isOpen: boolean;
   title: string;
@@ -76,6 +80,9 @@ interface AppState {
   blocks: PromptBlock[];
   compositions: PromptComposition[];
   currentComposition: CurrentCompositionItem[]; // Composition en cours de création
+  
+  // État des settings
+  settings: Settings | null;
   
   // État de l'interface
   selectedFiles: string[];
@@ -127,6 +134,10 @@ interface AppState {
   setError: (error: string | null) => void;
   clearError: () => void;
   
+  // Actions pour les settings
+  loadSettings: () => Promise<void>;
+  updateSettings: (data: { globalIgnorePatterns: string[] }) => Promise<void>;
+  
   // Actions de confirmation
   showConfirmation: (title: string, message: string, onConfirm: () => void) => void;
   hideConfirmation: () => void;
@@ -142,6 +153,7 @@ export const useAppStore = create<AppState>()(
       blocks: [],
       compositions: [],
       currentComposition: [],
+      settings: null,
       selectedFiles: [],
       finalRequest: '',
       generatedPrompt: '',
@@ -164,6 +176,7 @@ export const useAppStore = create<AppState>()(
           set({ workspaces, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to load workspaces', isLoading: false });
+          throw error;
         }
       },
 
@@ -191,6 +204,7 @@ export const useAppStore = create<AppState>()(
           set({ workspaces, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to create workspace', isLoading: false });
+          throw error;
         }
       },
 
@@ -203,6 +217,7 @@ export const useAppStore = create<AppState>()(
           set({ workspaces, selectedWorkspace, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to update workspace', isLoading: false });
+          throw error;
         }
       },
 
@@ -215,6 +230,7 @@ export const useAppStore = create<AppState>()(
           set({ workspaces, selectedWorkspace, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to delete workspace', isLoading: false });
+          throw error;
         }
       },
 
@@ -225,6 +241,7 @@ export const useAppStore = create<AppState>()(
           set({ fileStructure, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to load file structure', isLoading: false });
+          throw error;
         }
       },
 
@@ -236,6 +253,7 @@ export const useAppStore = create<AppState>()(
           set({ blocks, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to load blocks', isLoading: false });
+          throw error;
         }
       },
 
@@ -247,6 +265,7 @@ export const useAppStore = create<AppState>()(
           set({ blocks, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to create block', isLoading: false });
+          throw error;
         }
       },
 
@@ -258,6 +277,7 @@ export const useAppStore = create<AppState>()(
           set({ blocks, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to update block', isLoading: false });
+          throw error;
         }
       },
 
@@ -269,6 +289,7 @@ export const useAppStore = create<AppState>()(
           set({ blocks, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to delete block', isLoading: false });
+          throw error;
         }
       },
 
@@ -280,6 +301,7 @@ export const useAppStore = create<AppState>()(
           set({ compositions, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to load compositions', isLoading: false });
+          throw error;
         }
       },
 
@@ -291,6 +313,7 @@ export const useAppStore = create<AppState>()(
           set({ compositions, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to create composition', isLoading: false });
+          throw error;
         }
       },
 
@@ -302,6 +325,7 @@ export const useAppStore = create<AppState>()(
           set({ compositions, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to update composition', isLoading: false });
+          throw error;
         }
       },
 
@@ -313,6 +337,7 @@ export const useAppStore = create<AppState>()(
           set({ compositions, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to delete composition', isLoading: false });
+          throw error;
         }
       },
 
@@ -393,6 +418,30 @@ export const useAppStore = create<AppState>()(
           set({ generatedPrompt: result.prompt, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to generate prompt from composition', isLoading: false });
+          throw error;
+        }
+      },
+
+      // Actions pour les settings
+      loadSettings: async () => {
+        try {
+          set({ isLoading: true, error: null });
+          const settings = await settingsApi.get();
+          set({ settings: { globalIgnorePatterns: settings.globalIgnorePatterns }, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to load settings', isLoading: false });
+          throw error;
+        }
+      },
+
+      updateSettings: async (data) => {
+        try {
+          set({ isLoading: true, error: null });
+          const updatedSettings = await settingsApi.update(data);
+          set({ settings: { globalIgnorePatterns: updatedSettings.globalIgnorePatterns }, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to update settings', isLoading: false });
+          throw error;
         }
       },
 
@@ -431,10 +480,11 @@ export const useAppStore = create<AppState>()(
         selectedFiles: state.selectedFiles,
         finalRequest: state.finalRequest,
         currentComposition: state.currentComposition,
+        settings: state.settings,
       }),
     }
   )
 );
 
 // Import du promptApi pour éviter les dépendances circulaires
-import { promptApi } from '../services/api';
+import { promptApi } from '../api';

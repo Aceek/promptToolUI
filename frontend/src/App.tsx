@@ -1,11 +1,11 @@
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
-import MainPage from './pages/MainPage';
-import WorkspacesPage from './pages/settings/WorkspacesPage';
-import BlocksPage from './pages/settings/BlocksPage';
-import CompositionsPage from './pages/settings/CompositionsPage';
-import IgnorePatternsPage from './pages/settings/IgnorePatternsPage';
+import MainPage from './features/prompt-generator/MainPage';
+import WorkspacesPage from './features/workspace-management/WorkspacesPage';
+import BlocksPage from './features/block-management/BlocksPage';
+import CompositionsPage from './features/composition-management/CompositionsPage';
+import IgnorePatternsPage from './features/settings-management/IgnorePatternsPage';
 
 function App() {
   return (

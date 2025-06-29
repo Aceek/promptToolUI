@@ -13,7 +13,6 @@ interface CompositionBlock {
 const MainPage = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingStructure, setIsLoadingStructure] = useState(false);
-  const [currentComposition, setCurrentComposition] = useState<CompositionBlock[]>([]);
   const [finalRequest, setFinalRequest] = useState('');
   const [localGeneratedPrompt, setLocalGeneratedPrompt] = useState('');
   const [selectedCompositionId, setSelectedCompositionId] = useState<string | null>(null);
@@ -25,15 +24,17 @@ const MainPage = () => {
     selectedWorkspace,
     selectedFiles,
     fileStructure,
-    includeProjectInfo,
-    includeStructure,
+    currentComposition,
     isLoading,
     error,
     setSelectedWorkspace,
     setFileStructure,
     setSelectedFiles,
-    setIncludeProjectInfo,
-    setIncludeStructure,
+    addBlockToCurrentComposition,
+    removeBlockFromCurrentComposition,
+    reorderCurrentComposition,
+    clearCurrentComposition,
+    loadCompositionIntoCurrentComposition,
     fetchWorkspaces,
     loadBlocks,
     loadCompositions,
@@ -126,9 +127,7 @@ const MainPage = () => {
         lastFinalRequest: finalRequest,
       });
 
-      const blockIds = currentComposition
-        .sort((a, b) => a.order - b.order)
-        .map(cb => cb.block.id);
+      const blockIds = currentComposition.map(block => block.id);
 
       // 🪲 DEBUG: Logs pour diagnostiquer le problème
       console.log('🔍 DEBUG - currentComposition:', currentComposition);
@@ -137,9 +136,7 @@ const MainPage = () => {
 
       const requestData = {
         workspaceId: selectedWorkspace.id,
-        orderedBlockIds: blockIds, // 🔧 FIX: Correction du nom du paramètre
-        includeProjectInfo,
-        includeStructure,
+        orderedBlockIds: blockIds,
         finalRequest: finalRequest && finalRequest.trim() !== '' ? finalRequest : undefined,
         selectedFilePaths: selectedFiles.length > 0 ? selectedFiles : undefined,
       };
@@ -174,49 +171,24 @@ const MainPage = () => {
   };
 
   const addBlockToComposition = (block: PromptBlock) => {
-    const newOrder = Math.max(...currentComposition.map(cb => cb.order), -1) + 1;
-    const compositionBlock: CompositionBlock = {
-      id: `${block.id}-${Date.now()}`,
-      block,
-      order: newOrder
-    };
-    setCurrentComposition([...currentComposition, compositionBlock]);
+    addBlockToCurrentComposition(block);
   };
 
-  const removeBlockFromComposition = (compositionBlockId: string) => {
-    setCurrentComposition(currentComposition.filter(cb => cb.id !== compositionBlockId));
+  const removeBlockFromComposition = (index: number) => {
+    removeBlockFromCurrentComposition(index);
   };
 
   const moveBlockInComposition = (fromIndex: number, toIndex: number) => {
-    const newComposition = [...currentComposition];
-    const [removed] = newComposition.splice(fromIndex, 1);
-    newComposition.splice(toIndex, 0, removed);
-    
-    // Réorganiser les ordres
-    newComposition.forEach((cb, index) => {
-      cb.order = index;
-    });
-    
-    setCurrentComposition(newComposition);
+    reorderCurrentComposition(fromIndex, toIndex);
   };
 
   const loadComposition = (compositionId: string) => {
-    const composition = compositions.find(c => c.id === compositionId);
-    if (composition) {
-      const compositionBlocks: CompositionBlock[] = composition.blocks
-        .sort((a, b) => a.order - b.order)
-        .map((cb, index) => ({
-          id: `${cb.blockId}-${Date.now()}-${index}`,
-          block: cb.block,
-          order: index
-        }));
-      setCurrentComposition(compositionBlocks);
-      setSelectedCompositionId(compositionId);
-    }
+    loadCompositionIntoCurrentComposition(compositionId);
+    setSelectedCompositionId(compositionId);
   };
 
   const clearComposition = () => {
-    setCurrentComposition([]);
+    clearCurrentComposition();
     setSelectedCompositionId(null);
   };
 
@@ -389,23 +361,21 @@ const MainPage = () => {
               </div>
             ) : (
               <div className="space-y-2">
-                {currentComposition
-                  .sort((a, b) => a.order - b.order)
-                  .map((compositionBlock, index) => (
+                {currentComposition.map((block, index) => (
                     <div
-                      key={compositionBlock.id}
+                      key={`${block.id}-${index}`}
                       className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between"
                     >
                       <div className="flex items-center space-x-3">
                         <span className="text-sm text-gray-500 w-6">{index + 1}.</span>
                         <div
                           className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: compositionBlock.block.color || '#6B7280' }}
+                          style={{ backgroundColor: block.color || '#6B7280' }}
                         ></div>
                         <div>
-                          <span className="font-medium text-sm">{compositionBlock.block.name}</span>
-                          {compositionBlock.block.description && (
-                            <p className="text-xs text-gray-500">{compositionBlock.block.description}</p>
+                          <span className="font-medium text-sm">{block.name}</span>
+                          {block.description && (
+                            <p className="text-xs text-gray-500">{block.description}</p>
                           )}
                         </div>
                       </div>
@@ -428,7 +398,7 @@ const MainPage = () => {
                           </button>
                         )}
                         <button
-                          onClick={() => removeBlockFromComposition(compositionBlock.id)}
+                          onClick={() => removeBlockFromComposition(index)}
                           className="text-red-400 hover:text-red-600"
                         >
                           ×
@@ -442,36 +412,6 @@ const MainPage = () => {
             {/* Configuration et fichiers */}
             {selectedWorkspace && (
               <div className="mt-6 space-y-4">
-                {/* Options de configuration */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">Configuration</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="includeProjectInfo"
-                        checked={includeProjectInfo}
-                        onChange={(e) => setIncludeProjectInfo(e.target.checked)}
-                        className="mr-2 h-4 w-4"
-                      />
-                      <label htmlFor="includeProjectInfo" className="text-sm text-gray-700">
-                        Inclure les informations du projet
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="includeStructure"
-                        checked={includeStructure}
-                        onChange={(e) => setIncludeStructure(e.target.checked)}
-                        className="mr-2 h-4 w-4"
-                      />
-                      <label htmlFor="includeStructure" className="text-sm text-gray-700">
-                        Inclure la structure du projet
-                      </label>
-                    </div>
-                  </div>
-                </div>
 
                 {/* Demande finale */}
                 <div>

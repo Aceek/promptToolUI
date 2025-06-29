@@ -56,7 +56,6 @@ interface AppState {
   // État des workspaces
   workspaces: Workspace[];
   selectedWorkspace: Workspace | null;
-  currentWorkspace: Workspace | null; // Alias pour compatibilité
   fileStructure: FileNode[];
   
   // État des blocs et compositions
@@ -68,8 +67,6 @@ interface AppState {
   selectedFiles: string[];
   finalRequest: string;
   generatedPrompt: string;
-  includeProjectInfo: boolean;
-  includeStructure: boolean;
   isLoading: boolean;
   error: string | null;
   
@@ -77,7 +74,6 @@ interface AppState {
   fetchWorkspaces: () => Promise<void>;
   loadWorkspaces: () => Promise<void>; // Alias pour compatibilité
   setSelectedWorkspace: (workspace: Workspace | null) => void;
-  setCurrentWorkspace: (workspace: Workspace | null) => void; // Alias pour compatibilité
   createWorkspace: (data: { name: string; path: string; defaultCompositionId?: string; ignorePatterns?: string[]; projectInfo?: string }) => Promise<void>;
   updateWorkspace: (id: string, data: Partial<Workspace>) => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
@@ -106,9 +102,7 @@ interface AppState {
   // Actions pour la génération de prompt
   setSelectedFiles: (files: string[]) => void;
   setFinalRequest: (request: string) => void;
-  setIncludeProjectInfo: (include: boolean) => void;
-  setIncludeStructure: (include: boolean) => void;
-  generatePrompt: (data?: any) => Promise<any>;
+  generatePrompt: (data: { workspaceId: string; orderedBlockIds: string[]; finalRequest?: string; selectedFilePaths?: string[] }) => Promise<any>;
   generatePromptFromComposition: (compositionId: string) => Promise<void>;
   
   // Actions utilitaires
@@ -123,7 +117,6 @@ export const useAppStore = create<AppState>()(
       // État initial
       workspaces: [],
       selectedWorkspace: null,
-      currentWorkspace: null,
       fileStructure: [],
       blocks: [],
       compositions: [],
@@ -131,8 +124,6 @@ export const useAppStore = create<AppState>()(
       selectedFiles: [],
       finalRequest: '',
       generatedPrompt: '',
-      includeProjectInfo: false,
-      includeStructure: false,
       isLoading: false,
       error: null,
 
@@ -154,14 +145,9 @@ export const useAppStore = create<AppState>()(
       setSelectedWorkspace: (workspace) => {
         set({
           selectedWorkspace: workspace,
-          currentWorkspace: workspace,
           selectedFiles: workspace?.selectedFiles || [],
           finalRequest: workspace?.lastFinalRequest || ''
         });
-      },
-
-      setCurrentWorkspace: (workspace) => {
-        return get().setSelectedWorkspace(workspace);
       },
 
       setFileStructure: (structure) => {
@@ -184,8 +170,8 @@ export const useAppStore = create<AppState>()(
           set({ isLoading: true, error: null });
           const updatedWorkspace = await workspaceApi.update(id, data as any);
           const workspaces = get().workspaces.map(w => w.id === id ? updatedWorkspace : w);
-          const currentWorkspace = get().currentWorkspace?.id === id ? updatedWorkspace : get().currentWorkspace;
-          set({ workspaces, currentWorkspace, isLoading: false });
+          const selectedWorkspace = get().selectedWorkspace?.id === id ? updatedWorkspace : get().selectedWorkspace;
+          set({ workspaces, selectedWorkspace, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to update workspace', isLoading: false });
         }
@@ -196,8 +182,8 @@ export const useAppStore = create<AppState>()(
           set({ isLoading: true, error: null });
           await workspaceApi.delete(id);
           const workspaces = get().workspaces.filter(w => w.id !== id);
-          const currentWorkspace = get().currentWorkspace?.id === id ? null : get().currentWorkspace;
-          set({ workspaces, currentWorkspace, isLoading: false });
+          const selectedWorkspace = get().selectedWorkspace?.id === id ? null : get().selectedWorkspace;
+          set({ workspaces, selectedWorkspace, isLoading: false });
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to delete workspace', isLoading: false });
         }
@@ -342,60 +328,27 @@ export const useAppStore = create<AppState>()(
         set({ finalRequest: request });
       },
 
-      setIncludeProjectInfo: (include) => {
-        set({ includeProjectInfo: include });
-      },
 
-      setIncludeStructure: (include) => {
-        set({ includeStructure: include });
-      },
-
-      generatePrompt: async (data?: any) => {
-        if (data) {
-          // Utilisation avec des données externes (nouvelle API)
-          try {
-            set({ isLoading: true, error: null });
-            
-            // 🪲 DEBUG: Log des données envoyées à l'API
-            console.log('🔍 DEBUG STORE - Données envoyées à promptApi.generate:', data);
-            
-            const result = await promptApi.generate(data);
-            set({ generatedPrompt: result.prompt, isLoading: false });
-            return result;
-          } catch (error) {
-            console.log('🚨 DEBUG STORE - Erreur dans generatePrompt:', error);
-            set({ error: error instanceof Error ? error.message : 'Failed to generate prompt', isLoading: false });
-            throw error;
-          }
-        } else {
-          // Utilisation avec l'état interne (ancienne API)
-          const { currentWorkspace, currentComposition, finalRequest, selectedFiles } = get();
-          if (!currentWorkspace || currentComposition.length === 0) {
-            set({ error: 'Workspace and composition are required' });
-            return;
-          }
-
-          try {
-            set({ isLoading: true, error: null });
-            const orderedBlockIds = currentComposition.map(block => block.id);
-            const result = await promptApi.generate({
-              workspaceId: currentWorkspace.id,
-              orderedBlockIds,
-              finalRequest,
-              selectedFilePaths: selectedFiles,
-            });
-            set({ generatedPrompt: result.prompt, isLoading: false });
-            return result;
-          } catch (error) {
-            set({ error: error instanceof Error ? error.message : 'Failed to generate prompt', isLoading: false });
-            throw error;
-          }
+      generatePrompt: async (data: { workspaceId: string; orderedBlockIds: string[]; finalRequest?: string; selectedFilePaths?: string[] }) => {
+        try {
+          set({ isLoading: true, error: null });
+          
+          // 🪲 DEBUG: Log des données envoyées à l'API
+          console.log('🔍 DEBUG STORE - Données envoyées à promptApi.generate:', data);
+          
+          const result = await promptApi.generate(data);
+          set({ generatedPrompt: result.prompt, isLoading: false });
+          return result;
+        } catch (error) {
+          console.log('🚨 DEBUG STORE - Erreur dans generatePrompt:', error);
+          set({ error: error instanceof Error ? error.message : 'Failed to generate prompt', isLoading: false });
+          throw error;
         }
       },
 
       generatePromptFromComposition: async (compositionId) => {
-        const { currentWorkspace, finalRequest, selectedFiles } = get();
-        if (!currentWorkspace) {
+        const { selectedWorkspace, finalRequest, selectedFiles } = get();
+        if (!selectedWorkspace) {
           set({ error: 'Workspace is required' });
           return;
         }
@@ -403,7 +356,7 @@ export const useAppStore = create<AppState>()(
         try {
           set({ isLoading: true, error: null });
           const result = await promptApi.generateFromComposition({
-            workspaceId: currentWorkspace.id,
+            workspaceId: selectedWorkspace.id,
             compositionId,
             finalRequest,
             selectedFilePaths: selectedFiles,
@@ -422,7 +375,7 @@ export const useAppStore = create<AppState>()(
     {
       name: 'app-store',
       partialize: (state) => ({
-        currentWorkspace: state.currentWorkspace,
+        selectedWorkspace: state.selectedWorkspace,
         selectedFiles: state.selectedFiles,
         finalRequest: state.finalRequest,
         currentComposition: state.currentComposition,

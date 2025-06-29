@@ -52,9 +52,6 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
     }
   }>('/generate', async (request, reply) => {
     try {
-      // 🪲 DEBUG: Log du body reçu
-      console.log('🔍 DEBUG BACKEND - request.body reçu:', JSON.stringify(request.body, null, 2));
-      
       const {
         workspaceId,
         orderedBlockIds,
@@ -62,15 +59,8 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
         selectedFilePaths = []
       } = request.body;
 
-      // 🪲 DEBUG: Log des valeurs extraites
-      console.log('🔍 DEBUG BACKEND - workspaceId:', workspaceId);
-      console.log('🔍 DEBUG BACKEND - orderedBlockIds:', orderedBlockIds);
-      console.log('🔍 DEBUG BACKEND - orderedBlockIds type:', typeof orderedBlockIds);
-      console.log('🔍 DEBUG BACKEND - orderedBlockIds isArray:', Array.isArray(orderedBlockIds));
-
       // Validation
       if (!orderedBlockIds || !Array.isArray(orderedBlockIds) || orderedBlockIds.length === 0) {
-        console.log('🚨 DEBUG BACKEND - Validation échouée pour orderedBlockIds');
         return reply.status(400).send({ error: 'orderedBlockIds is required and must be a non-empty array' });
       }
 

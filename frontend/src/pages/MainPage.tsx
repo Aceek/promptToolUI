@@ -8,6 +8,7 @@ interface CompositionBlock {
   id: string;
   block: PromptBlock;
   order: number;
+  uniqueId: string; // Unique identifier for rendering purposes
 }
 
 const MainPage = () => {
@@ -16,6 +17,7 @@ const MainPage = () => {
   const [finalRequest, setFinalRequest] = useState('');
   const [localGeneratedPrompt, setLocalGeneratedPrompt] = useState('');
   const [selectedCompositionId, setSelectedCompositionId] = useState<string | null>(null);
+  const [renderedComposition, setRenderedComposition] = useState<CompositionBlock[]>([]);
 
   const {
     workspaces,
@@ -68,6 +70,19 @@ const MainPage = () => {
   useEffect(() => {
     loadFileStructure();
   }, [loadFileStructure]);
+
+  // Update renderedComposition whenever currentComposition changes
+  useEffect(() => {
+    const newRenderedComposition = currentComposition
+      .filter(compositionItem => compositionItem && compositionItem.block)
+      .map((compositionItem, index) => ({
+        id: compositionItem.block.id,
+        block: compositionItem.block,
+        order: index,
+        uniqueId: compositionItem.instanceId
+      }));
+    setRenderedComposition(newRenderedComposition);
+  }, [currentComposition]);
 
   // Gère la connexion WebSocket et l'abonnement aux changements de fichiers
   useEffect(() => {
@@ -127,12 +142,8 @@ const MainPage = () => {
         lastFinalRequest: finalRequest,
       });
 
-      const blockIds = currentComposition.map(block => block.id);
+      const blockIds = currentComposition.map(item => item.block.id);
 
-      // 🪲 DEBUG: Logs pour diagnostiquer le problème
-      console.log('🔍 DEBUG - currentComposition:', currentComposition);
-      console.log('🔍 DEBUG - blockIds extraits:', blockIds);
-      console.log('🔍 DEBUG - blockIds.length:', blockIds.length);
 
       const requestData = {
         workspaceId: selectedWorkspace.id,
@@ -175,7 +186,10 @@ const MainPage = () => {
   };
 
   const removeBlockFromComposition = (index: number) => {
-    removeBlockFromCurrentComposition(index);
+    const instanceId = renderedComposition[index]?.uniqueId;
+    if (instanceId) {
+      removeBlockFromCurrentComposition(instanceId);
+    }
   };
 
   const moveBlockInComposition = (fromIndex: number, toIndex: number) => {
@@ -361,21 +375,21 @@ const MainPage = () => {
               </div>
             ) : (
               <div className="space-y-2">
-                {currentComposition.map((block, index) => (
+                {renderedComposition.map((compBlock, index) => (
                     <div
-                      key={`${block.id}-${index}`}
+                      key={compBlock.uniqueId}
                       className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between"
                     >
                       <div className="flex items-center space-x-3">
                         <span className="text-sm text-gray-500 w-6">{index + 1}.</span>
                         <div
                           className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: block.color || '#6B7280' }}
+                          style={{ backgroundColor: compBlock.block.color || '#6B7280' }}
                         ></div>
                         <div>
-                          <span className="font-medium text-sm">{block.name}</span>
-                          {block.description && (
-                            <p className="text-xs text-gray-500">{block.description}</p>
+                          <span className="font-medium text-sm">{compBlock.block.name}</span>
+                          {compBlock.block.description && (
+                            <p className="text-xs text-gray-500">{compBlock.block.description}</p>
                           )}
                         </div>
                       </div>
@@ -389,7 +403,7 @@ const MainPage = () => {
                             ↑
                           </button>
                         )}
-                        {index < currentComposition.length - 1 && (
+                        {index < renderedComposition.length - 1 && (
                           <button
                             onClick={() => moveBlockInComposition(index, index + 1)}
                             className="text-gray-400 hover:text-gray-600"

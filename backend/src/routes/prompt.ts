@@ -74,13 +74,18 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
         return;
       }
 
-      // Vérifier que tous les blocs existent
-      const blocks = await prisma.promptBlock.findMany({
-        where: { id: { in: orderedBlockIds } }
+      // Crée un Set des IDs pour une recherche efficace et sans doublons.
+      const uniqueBlockIds = [...new Set(orderedBlockIds)];
+
+      // Vérifie que tous les IDs uniques demandés existent bien dans la base de données.
+      const existingBlocks = await prisma.promptBlock.findMany({
+        where: { id: { in: uniqueBlockIds } },
+        select: { id: true } // On n'a besoin que des IDs pour la validation.
       });
 
-      if (blocks.length !== orderedBlockIds.length) {
-        return reply.status(400).send({ error: 'Some blocks do not exist' });
+      if (existingBlocks.length !== uniqueBlockIds.length) {
+        // Cette logique est maintenant correcte : elle s'assure que chaque ID unique demandé existe.
+        return reply.status(400).send({ error: 'One or more specified blocks do not exist.' });
       }
 
       // Get global ignore patterns

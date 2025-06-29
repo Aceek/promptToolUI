@@ -31,6 +31,11 @@ export interface PromptComposition {
   updatedAt: string;
 }
 
+export interface CurrentCompositionItem {
+  instanceId: string; // Un ID unique pour cette instance dans la liste
+  block: PromptBlock;
+}
+
 export interface Workspace {
   id: string;
   name: string;
@@ -61,7 +66,7 @@ interface AppState {
   // État des blocs et compositions
   blocks: PromptBlock[];
   compositions: PromptComposition[];
-  currentComposition: PromptBlock[]; // Composition en cours de création
+  currentComposition: CurrentCompositionItem[]; // Composition en cours de création
   
   // État de l'interface
   selectedFiles: string[];
@@ -94,7 +99,7 @@ interface AppState {
   
   // Actions pour la composition en cours
   addBlockToCurrentComposition: (block: PromptBlock) => void;
-  removeBlockFromCurrentComposition: (index: number) => void;
+  removeBlockFromCurrentComposition: (instanceId: string) => void;
   reorderCurrentComposition: (fromIndex: number, toIndex: number) => void;
   clearCurrentComposition: () => void;
   loadCompositionIntoCurrentComposition: (compositionId: string) => void;
@@ -289,12 +294,13 @@ export const useAppStore = create<AppState>()(
 
       // Actions pour la composition en cours
       addBlockToCurrentComposition: (block) => {
-        const currentComposition = [...get().currentComposition, block];
+        const instanceId = crypto.randomUUID();
+        const currentComposition = [...get().currentComposition, { instanceId, block }];
         set({ currentComposition });
       },
 
-      removeBlockFromCurrentComposition: (index) => {
-        const currentComposition = get().currentComposition.filter((_, i) => i !== index);
+      removeBlockFromCurrentComposition: (instanceId) => {
+        const currentComposition = get().currentComposition.filter(item => item.instanceId !== instanceId);
         set({ currentComposition });
       },
 
@@ -314,7 +320,10 @@ export const useAppStore = create<AppState>()(
         if (composition) {
           const currentComposition = composition.blocks
             .sort((a, b) => a.order - b.order)
-            .map(cb => cb.block);
+            .map(cb => ({
+              instanceId: crypto.randomUUID(),
+              block: cb.block
+            }));
           set({ currentComposition });
         }
       },
@@ -333,14 +342,10 @@ export const useAppStore = create<AppState>()(
         try {
           set({ isLoading: true, error: null });
           
-          // 🪲 DEBUG: Log des données envoyées à l'API
-          console.log('🔍 DEBUG STORE - Données envoyées à promptApi.generate:', data);
-          
           const result = await promptApi.generate(data);
           set({ generatedPrompt: result.prompt, isLoading: false });
           return result;
         } catch (error) {
-          console.log('🚨 DEBUG STORE - Erreur dans generatePrompt:', error);
           set({ error: error instanceof Error ? error.message : 'Failed to generate prompt', isLoading: false });
           throw error;
         }

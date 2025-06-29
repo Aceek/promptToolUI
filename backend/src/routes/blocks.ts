@@ -1,6 +1,8 @@
 import { FastifyPluginAsync } from 'fastify';
 import { PrismaClient, PromptBlockType } from '@prisma/client';
 
+const SYSTEM_CATEGORY_NAME = 'Blocs Fondamentaux';
+
 export const blocksRoutes: FastifyPluginAsync = async (fastify) => {
   const prisma: PrismaClient = fastify.prisma;
 
@@ -71,14 +73,25 @@ export const blocksRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Name and content are required' });
       }
 
+      if (category?.trim() === SYSTEM_CATEGORY_NAME) {
+        return reply.status(403).send({ error: `The category "${SYSTEM_CATEGORY_NAME}" is reserved for system blocks.` });
+      }
+
+      let dataToCreate: any = {
+        name,
+        content,
+        type,
+        category: category || null,
+        color: color || null
+      };
+
+      if (type === PromptBlockType.DYNAMIC_TASK) {
+        dataToCreate.category = SYSTEM_CATEGORY_NAME;
+        dataToCreate.isSystemBlock = true;
+      }
+
       const block = await prisma.promptBlock.create({
-        data: {
-          name,
-          content,
-          type,
-          category: category || null,
-          color: color || null
-        }
+        data: dataToCreate
       });
 
       fastify.appLogger.business({
@@ -115,6 +128,14 @@ export const blocksRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (!existingBlock) {
         return reply.status(404).send({ error: 'Block not found' });
+      }
+
+      if (!existingBlock.isSystemBlock && category?.trim() === SYSTEM_CATEGORY_NAME) {
+        return reply.status(403).send({ error: `The category "${SYSTEM_CATEGORY_NAME}" is reserved for system blocks.` });
+      }
+
+      if (existingBlock.isSystemBlock && type && type !== existingBlock.type) {
+        return reply.status(403).send({ error: "Cannot change the type of a system block." });
       }
 
       const updatedBlock = await prisma.promptBlock.update({

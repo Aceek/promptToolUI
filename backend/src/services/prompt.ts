@@ -56,8 +56,17 @@ export async function generatePrompt(options: PromptGenerationOptions): Promise<
           break;
 
         case 'DYNAMIC_TASK':
-          // Remplacer un placeholder dans le contenu du bloc par la requête
-          blockContent = block.content.replace('{{dynamic_task}}', finalRequest || '');
+          try {
+            const taskContent = JSON.parse(block.content);
+            const prefix = taskContent.prefix || '';
+            const suffix = taskContent.suffix || '';
+            // S'assurer de ne pas ajouter de lignes vides superflues si un champ est vide.
+            const parts = [prefix, finalRequest || '', suffix].filter(p => p.trim() !== '');
+            blockContent = parts.join('\n\n');
+          } catch (e) {
+            // Fallback pour l'ancienne méthode, pour la rétrocompatibilité ou les erreurs
+            blockContent = block.content.replace('{{dynamic_task}}', finalRequest || '');
+          }
           break;
 
         case 'PROJECT_STRUCTURE':

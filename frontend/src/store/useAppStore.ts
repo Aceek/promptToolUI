@@ -8,6 +8,7 @@ export interface PromptBlock {
   name: string;
   content: string;
   type: 'STATIC' | 'DYNAMIC_TASK' | 'PROJECT_STRUCTURE' | 'SELECTED_FILES_CONTENT' | 'PROJECT_INFO';
+  isSystemBlock?: boolean;
   category?: string;
   color?: string;
   description?: string;

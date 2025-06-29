@@ -24,6 +24,9 @@ model PromptBlock {
   // Le type de bloc détermine si un traitement spécial est nécessaire au backend.
   type      PromptBlockType @default(STATIC)
   
+  // Nouveau champ pour distinguer les blocs système des blocs personnalisés
+  isSystemBlock Boolean      @default(false)
+  
   // Pour l'organisation dans l'UI
   category  String?         // Catégorie définie par l'utilisateur (ex: "Rôles", "Instructions")
   color     String?         // Code couleur pour l'UI (ex: "#4299e1")

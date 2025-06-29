@@ -47,7 +47,10 @@ async function main() {
     prisma.promptBlock.create({
       data: {
         name: 'Tâche Utilisateur',
-        content: 'TASK TO ACCOMPLISH:\n\n{{dynamic_task}}\n\nPlease analyze the provided code and project structure to accomplish this task effectively.',
+        content: JSON.stringify({
+          prefix: "TASK TO ACCOMPLISH:",
+          suffix: "Please analyze the provided code and project structure to accomplish this task effectively."
+        }),
         type: PromptBlockType.DYNAMIC_TASK,
         category: 'Tâche',
         color: '#EF4444'
@@ -85,14 +88,15 @@ async function main() {
       }
     }),
 
-    // Blocs dynamiques pour le contenu du projet
+    // Blocs dynamiques pour le contenu du projet (SYSTEM BLOCKS)
     prisma.promptBlock.create({
       data: {
         name: 'Informations du Projet',
         content: 'PROJECT INFORMATION:\n\nThe following information describes the current project context.',
         type: PromptBlockType.PROJECT_INFO,
         category: 'Contexte',
-        color: '#8B5CF6'
+        color: '#8B5CF6',
+        isSystemBlock: true
       }
     }),
 
@@ -102,7 +106,8 @@ async function main() {
         content: 'PROJECT STRUCTURE:\n\nHere is the current file and directory structure of the project.',
         type: PromptBlockType.PROJECT_STRUCTURE,
         category: 'Contexte',
-        color: '#8B5CF6'
+        color: '#8B5CF6',
+        isSystemBlock: true
       }
     }),
 
@@ -112,7 +117,8 @@ async function main() {
         content: 'SELECTED FILES CONTENT:\n\nThe following files have been selected for analysis.',
         type: PromptBlockType.SELECTED_FILES_CONTENT,
         category: 'Contexte',
-        color: '#8B5CF6'
+        color: '#8B5CF6',
+        isSystemBlock: true
       }
     }),
 

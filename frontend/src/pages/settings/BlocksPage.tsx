@@ -15,6 +15,13 @@ const PREDEFINED_COLORS = [
   '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
 ];
 
+type BlockCreationType = 'text' | 'dynamic_task';
+
+interface DynamicTaskContent {
+  prefix: string;
+  suffix: string;
+}
+
 export default function BlocksPage() {
   const { 
     blocks, 
@@ -28,6 +35,9 @@ export default function BlocksPage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<PromptBlock | null>(null);
+  const [creationType, setCreationType] = useState<BlockCreationType>('text');
+  const [showTypeSelection, setShowTypeSelection] = useState(false);
+  
   const [formData, setFormData] = useState({
     name: '',
     content: '',
@@ -36,29 +46,80 @@ export default function BlocksPage() {
     color: PREDEFINED_COLORS[0]
   });
 
+  // État spécifique pour les blocs de tâche dynamique
+  const [dynamicTaskData, setDynamicTaskData] = useState({
+    prefix: '',
+    suffix: ''
+  });
+
   useEffect(() => {
     loadBlocks();
   }, [loadBlocks]);
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      content: '',
+      type: 'STATIC',
+      category: '',
+      color: PREDEFINED_COLORS[0]
+    });
+    setDynamicTaskData({
+      prefix: '',
+      suffix: ''
+    });
+    setCreationType('text');
+    setShowTypeSelection(false);
+  };
+
+  const handleNewBlock = () => {
+    resetForm();
+    setEditingBlock(null);
+    setShowTypeSelection(true);
+    setIsModalOpen(true);
+  };
+
+  const handleTypeSelection = (type: BlockCreationType) => {
+    setCreationType(type);
+    setShowTypeSelection(false);
+    
+    if (type === 'dynamic_task') {
+      setFormData(prev => ({
+        ...prev,
+        type: 'DYNAMIC_TASK',
+        category: 'Tâche'
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        type: 'STATIC'
+      }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
+      let finalFormData = { ...formData };
+      
+      // Si c'est un bloc de tâche dynamique, construire le JSON
+      if (formData.type === 'DYNAMIC_TASK') {
+        finalFormData.content = JSON.stringify({
+          prefix: dynamicTaskData.prefix,
+          suffix: dynamicTaskData.suffix
+        });
+      }
+      
       if (editingBlock) {
-        await updateBlock(editingBlock.id, formData);
+        await updateBlock(editingBlock.id, finalFormData);
       } else {
-        await createBlock(formData);
+        await createBlock(finalFormData);
       }
       
       setIsModalOpen(false);
       setEditingBlock(null);
-      setFormData({
-        name: '',
-        content: '',
-        type: 'STATIC',
-        category: '',
-        color: PREDEFINED_COLORS[0]
-      });
+      resetForm();
     } catch (error) {
       console.error('Failed to save block:', error);
     }
@@ -66,13 +127,41 @@ export default function BlocksPage() {
 
   const handleEdit = (block: PromptBlock) => {
     setEditingBlock(block);
+    setShowTypeSelection(false);
+    
+    // Si c'est un bloc de tâche dynamique, parser le JSON
+    if (block.type === 'DYNAMIC_TASK') {
+      try {
+        const taskContent: DynamicTaskContent = JSON.parse(block.content);
+        setDynamicTaskData({
+          prefix: taskContent.prefix || '',
+          suffix: taskContent.suffix || ''
+        });
+        setCreationType('dynamic_task');
+      } catch (e) {
+        // Fallback pour l'ancien format
+        setFormData(prev => ({ ...prev, content: block.content }));
+        setCreationType('text');
+      }
+    } else {
+      setCreationType('text');
+      setFormData({
+        name: block.name,
+        content: block.content,
+        type: block.type,
+        category: block.category || '',
+        color: block.color || PREDEFINED_COLORS[0]
+      });
+    }
+    
     setFormData({
       name: block.name,
-      content: block.content,
+      content: block.type === 'DYNAMIC_TASK' ? '' : block.content,
       type: block.type,
       category: block.category || '',
       color: block.color || PREDEFINED_COLORS[0]
     });
+    
     setIsModalOpen(true);
   };
 
@@ -107,10 +196,10 @@ export default function BlocksPage() {
           <p className="text-gray-600">Créez et gérez vos blocs de prompt modulaires</p>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleNewBlock}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
-          Nouveau Bloc
+          + Nouveau Bloc
         </button>
       </div>
 
@@ -136,6 +225,9 @@ export default function BlocksPage() {
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center space-x-2">
+                        {block.isSystemBlock && (
+                          <span className="text-gray-500" title="Bloc Système">⚙️</span>
+                        )}
                         <div
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: block.color || '#6B7280' }}
@@ -149,12 +241,14 @@ export default function BlocksPage() {
                         >
                           Modifier
                         </button>
-                        <button
-                          onClick={() => handleDelete(block.id)}
-                          className="text-red-600 hover:text-red-800 text-sm"
-                        >
-                          Supprimer
-                        </button>
+                        {!block.isSystemBlock && (
+                          <button
+                            onClick={() => handleDelete(block.id)}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            Supprimer
+                          </button>
+                        )}
                       </div>
                     </div>
                     
@@ -162,10 +256,26 @@ export default function BlocksPage() {
                       <span className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">
                         {BLOCK_TYPES.find(t => t.value === block.type)?.label || block.type}
                       </span>
+                      {block.isSystemBlock && (
+                        <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded ml-2">
+                          Système
+                        </span>
+                      )}
                     </div>
                     
                     <p className="text-sm text-gray-600 line-clamp-3">
-                      {block.content.substring(0, 100)}
+                      {block.type === 'DYNAMIC_TASK' ? (
+                        (() => {
+                          try {
+                            const taskContent: DynamicTaskContent = JSON.parse(block.content);
+                            return `${taskContent.prefix} [TÂCHE UTILISATEUR] ${taskContent.suffix}`.substring(0, 100);
+                          } catch (e) {
+                            return block.content.substring(0, 100);
+                          }
+                        })()
+                      ) : (
+                        block.content.substring(0, 100)
+                      )}
                       {block.content.length > 100 && '...'}
                     </p>
                   </div>
@@ -181,113 +291,219 @@ export default function BlocksPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h2 className="text-xl font-bold mb-4">
-                {editingBlock ? 'Modifier le bloc' : 'Nouveau bloc'}
-              </h2>
-              
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nom du bloc
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Type de bloc
-                  </label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value as PromptBlock['type'] })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {BLOCK_TYPES.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label} - {type.description}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Catégorie
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="ex: Rôles, Instructions, Formats..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Couleur
-                  </label>
-                  <div className="flex space-x-2">
-                    {PREDEFINED_COLORS.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, color })}
-                        className={`w-8 h-8 rounded-full border-2 ${
-                          formData.color === color ? 'border-gray-800' : 'border-gray-300'
-                        }`}
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
+              {showTypeSelection ? (
+                <>
+                  <h2 className="text-xl font-bold mb-4">Quel type de bloc voulez-vous créer ?</h2>
+                  <div className="space-y-4">
+                    <button
+                      onClick={() => handleTypeSelection('text')}
+                      className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                          🧱
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">Bloc de Texte</h3>
+                          <p className="text-sm text-gray-600">Pour les rôles, instructions, formats, etc.</p>
+                        </div>
+                      </div>
+                    </button>
+                    
+                    <button
+                      onClick={() => handleTypeSelection('dynamic_task')}
+                      className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                          ⚡
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">Bloc de Tâche Utilisateur</h3>
+                          <p className="text-sm text-gray-600">Pour la tâche dynamique avec texte d'introduction et de conclusion</p>
+                        </div>
+                      </div>
+                    </button>
                   </div>
-                </div>
+                  
+                  <div className="flex justify-end pt-4">
+                    <button
+                      onClick={() => {
+                        setIsModalOpen(false);
+                        resetForm();
+                      }}
+                      className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-xl font-bold mb-4">
+                    {editingBlock ? 'Modifier le bloc' : 'Nouveau bloc'}
+                  </h2>
+                  
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Nom du bloc
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Contenu du bloc
-                  </label>
-                  <textarea
-                    value={formData.content}
-                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                    rows={8}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Contenu du bloc... Utilisez {{dynamic_task}} pour les blocs de type DYNAMIC_TASK"
-                    required
-                  />
-                </div>
+                    {editingBlock?.isSystemBlock && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="text-sm text-blue-800">
+                          ⚙️ Ce bloc est un bloc système. Vous pouvez modifier son nom, sa catégorie et sa couleur, mais pas son type ou son contenu.
+                        </p>
+                      </div>
+                    )}
 
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsModalOpen(false);
-                      setEditingBlock(null);
-                      setFormData({
-                        name: '',
-                        content: '',
-                        type: 'STATIC',
-                        category: '',
-                        color: PREDEFINED_COLORS[0]
-                      });
-                    }}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    {editingBlock ? 'Mettre à jour' : 'Créer'}
-                  </button>
-                </div>
-              </form>
+                    {!editingBlock?.isSystemBlock && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Type de bloc
+                        </label>
+                        <select
+                          value={formData.type}
+                          onChange={(e) => setFormData({ ...formData, type: e.target.value as PromptBlock['type'] })}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          disabled={!!editingBlock}
+                        >
+                          {BLOCK_TYPES.map((type) => (
+                            <option key={type.value} value={type.value}>
+                              {type.label} - {type.description}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Catégorie
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.category}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="ex: Rôles, Instructions, Formats..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Couleur
+                      </label>
+                      <div className="flex space-x-2">
+                        {PREDEFINED_COLORS.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => setFormData({ ...formData, color })}
+                            className={`w-8 h-8 rounded-full border-2 ${
+                              formData.color === color ? 'border-gray-800' : 'border-gray-300'
+                            }`}
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {!editingBlock?.isSystemBlock && (
+                      <>
+                        {creationType === 'dynamic_task' ? (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Texte d'introduction (optionnel)
+                              </label>
+                              <textarea
+                                value={dynamicTaskData.prefix}
+                                onChange={(e) => setDynamicTaskData({ ...dynamicTaskData, prefix: e.target.value })}
+                                rows={3}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="ex: TASK TO ACCOMPLISH:"
+                              />
+                            </div>
+                            
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                              <p className="text-sm text-gray-600 text-center italic">
+                                [La tâche saisie par l'utilisateur apparaîtra ici]
+                              </p>
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Texte de conclusion (optionnel)
+                              </label>
+                              <textarea
+                                value={dynamicTaskData.suffix}
+                                onChange={(e) => setDynamicTaskData({ ...dynamicTaskData, suffix: e.target.value })}
+                                rows={3}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="ex: Please analyze the provided code and project structure to accomplish this task effectively."
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Contenu du bloc
+                            </label>
+                            <textarea
+                              value={formData.content}
+                              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                              rows={8}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Contenu du bloc..."
+                              required
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    <div className="flex justify-end space-x-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsModalOpen(false);
+                          setEditingBlock(null);
+                          resetForm();
+                        }}
+                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                      >
+                        Annuler
+                      </button>
+                      {!editingBlock?.isSystemBlock && (
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          {editingBlock ? 'Mettre à jour' : 'Créer'}
+                        </button>
+                      )}
+                      {editingBlock?.isSystemBlock && (
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          Mettre à jour
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                </>
+              )}
             </div>
           </div>
         </div>

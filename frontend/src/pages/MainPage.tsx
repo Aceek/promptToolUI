@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore, FileNode, PromptBlock } from '../store/useAppStore';
 import { workspaceApi } from '../services/api';
 import { websocketService } from '../services/websocket';
@@ -83,6 +83,12 @@ const MainPage = () => {
       }));
     setRenderedComposition(newRenderedComposition);
   }, [currentComposition]);
+
+  // Détecter si la composition contient un bloc de tâche dynamique
+  const hasDynamicTaskBlock = useMemo(() =>
+    currentComposition.some(item => item.block.type === 'DYNAMIC_TASK'),
+    [currentComposition]
+  );
 
   // Gère la connexion WebSocket et l'abonnement aux changements de fichiers
   useEffect(() => {
@@ -226,6 +232,144 @@ const MainPage = () => {
   const handleDeselectAll = () => {
     setSelectedFiles([]);
   };
+
+  // Fonction pour rendre un bloc de tâche dynamique avec le textarea intégré
+  const renderDynamicTaskBlock = (compBlock: CompositionBlock, index: number) => {
+    let taskContent = { prefix: '', suffix: '' };
+    try {
+      taskContent = JSON.parse(compBlock.block.content);
+    } catch (e) {
+      // Fallback pour l'ancien format
+    }
+
+    return (
+      <div
+        key={compBlock.uniqueId}
+        className="bg-white border border-gray-200 rounded-lg p-4"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <span className="text-sm text-gray-500 w-6">{index + 1}.</span>
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: compBlock.block.color || '#6B7280' }}
+            ></div>
+            <div>
+              <span className="font-medium text-sm">{compBlock.block.name}</span>
+              <span className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded ml-2">
+                Tâche Dynamique
+              </span>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            {index > 0 && (
+              <button
+                onClick={() => moveBlockInComposition(index, index - 1)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ↑
+              </button>
+            )}
+            {index < renderedComposition.length - 1 && (
+              <button
+                onClick={() => moveBlockInComposition(index, index + 1)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ↓
+              </button>
+            )}
+            <button
+              onClick={() => removeBlockFromComposition(index)}
+              className="text-red-400 hover:text-red-600"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {/* Contenu du bloc avec textarea intégré */}
+        <div className="space-y-3">
+          {taskContent.prefix && (
+            <div className="bg-gray-50 border border-gray-200 rounded p-3">
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{taskContent.prefix}</p>
+            </div>
+          )}
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Demande finale
+            </label>
+            <textarea
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-yellow-50"
+              rows={3}
+              placeholder="Décrivez ce que vous voulez que l'IA fasse..."
+              value={finalRequest}
+              onChange={(e) => setFinalRequest(e.target.value)}
+            />
+          </div>
+          
+          {taskContent.suffix && (
+            <div className="bg-gray-50 border border-gray-200 rounded p-3">
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{taskContent.suffix}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Fonction pour rendre un bloc normal
+  const renderNormalBlock = (compBlock: CompositionBlock, index: number) => (
+    <div
+      key={compBlock.uniqueId}
+      className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between"
+    >
+      <div className="flex items-center space-x-3">
+        <span className="text-sm text-gray-500 w-6">{index + 1}.</span>
+        <div
+          className="w-3 h-3 rounded-full"
+          style={{ backgroundColor: compBlock.block.color || '#6B7280' }}
+        ></div>
+        <div>
+          <span className="font-medium text-sm">{compBlock.block.name}</span>
+          {compBlock.block.isSystemBlock && (
+            <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded ml-2">
+              ⚙️ Système
+            </span>
+          )}
+          {compBlock.block.description && (
+            <p className="text-xs text-gray-500">{compBlock.block.description}</p>
+          )}
+        </div>
+      </div>
+      
+      <div className="flex items-center space-x-2">
+        {index > 0 && (
+          <button
+            onClick={() => moveBlockInComposition(index, index - 1)}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            ↑
+          </button>
+        )}
+        {index < renderedComposition.length - 1 && (
+          <button
+            onClick={() => moveBlockInComposition(index, index + 1)}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            ↓
+          </button>
+        )}
+        <button
+          onClick={() => removeBlockFromComposition(index)}
+          className="text-red-400 hover:text-red-600"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
 
   // Grouper les blocs par catégorie
   const groupedBlocks = blocks.reduce((acc, block) => {
@@ -375,51 +519,11 @@ const MainPage = () => {
               </div>
             ) : (
               <div className="space-y-2">
-                {renderedComposition.map((compBlock, index) => (
-                    <div
-                      key={compBlock.uniqueId}
-                      className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <span className="text-sm text-gray-500 w-6">{index + 1}.</span>
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: compBlock.block.color || '#6B7280' }}
-                        ></div>
-                        <div>
-                          <span className="font-medium text-sm">{compBlock.block.name}</span>
-                          {compBlock.block.description && (
-                            <p className="text-xs text-gray-500">{compBlock.block.description}</p>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        {index > 0 && (
-                          <button
-                            onClick={() => moveBlockInComposition(index, index - 1)}
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            ↑
-                          </button>
-                        )}
-                        {index < renderedComposition.length - 1 && (
-                          <button
-                            onClick={() => moveBlockInComposition(index, index + 1)}
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            ↓
-                          </button>
-                        )}
-                        <button
-                          onClick={() => removeBlockFromComposition(index)}
-                          className="text-red-400 hover:text-red-600"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                {renderedComposition.map((compBlock, index) =>
+                  compBlock.block.type === 'DYNAMIC_TASK'
+                    ? renderDynamicTaskBlock(compBlock, index)
+                    : renderNormalBlock(compBlock, index)
+                )}
               </div>
             )}
 
@@ -427,19 +531,21 @@ const MainPage = () => {
             {selectedWorkspace && (
               <div className="mt-6 space-y-4">
 
-                {/* Demande finale */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Demande finale
-                  </label>
-                  <textarea
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={3}
-                    placeholder="Décrivez ce que vous voulez que l'IA fasse..."
-                    value={finalRequest}
-                    onChange={(e) => setFinalRequest(e.target.value)}
-                  />
-                </div>
+                {/* Demande finale - Ne s'affiche que si aucun bloc DYNAMIC_TASK n'est présent */}
+                {!hasDynamicTaskBlock && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Demande finale
+                    </label>
+                    <textarea
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={3}
+                      placeholder="Décrivez ce que vous voulez que l'IA fasse..."
+                      value={finalRequest}
+                      onChange={(e) => setFinalRequest(e.target.value)}
+                    />
+                  </div>
+                )}
 
                 {/* Sélection de fichiers */}
                 <div>

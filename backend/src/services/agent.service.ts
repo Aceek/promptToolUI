@@ -1,5 +1,5 @@
-import { FileNode } from './structure.js';
-import { logger } from './logger.js';
+import { FileNode } from './structure.service';
+import { logger } from './logger';
 
 export interface FileContent {
   path: string;
@@ -157,3 +157,6 @@ export class AgentService {
     return this.agentUrl;
   }
 }
+
+// Instance singleton du service
+export const agentService = new AgentService();

@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { PrismaClient } from '@prisma/client';
-import { generateStructure } from '../services/structure';
-import { generatePrompt } from '../services/prompt';
+import { generateStructure } from '../services/structure.service';
+import { generatePrompt } from '../services/prompt.service';
 import {
   generatePromptBodySchema,
   generateFromCompositionBodySchema,

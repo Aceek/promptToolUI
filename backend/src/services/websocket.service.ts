@@ -1,7 +1,7 @@
 import { Server, Socket } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
 import { logger } from './logger';
-import { AgentService } from './agentService';
+import { agentService } from './agent.service';
 
 // L'URL que l'agent (sur l'hôte) doit appeler pour joindre le backend (dans Docker)
 // CORRECTION: L'agent tourne sur l'hôte et doit accéder au backend via localhost (port exposé)
@@ -9,7 +9,6 @@ const backendCallbackBaseUrl = process.env.BACKEND_CALLBACK_URL || 'http://local
 
 // Map pour suivre le nombre de clients par workspace
 const workspaceClientCount = new Map<string, number>();
-const agentService = new AgentService();
 
 export function setupWebSocket(io: Server, prisma: PrismaClient) {
   io.on('connection', (socket: Socket) => {

@@ -1,6 +1,6 @@
 import * as path from 'path';
-import { detectLanguage } from './structure.js';
-import { AgentService } from './agentService.js';
+import { detectLanguage } from './structure.service';
+import { agentService } from './agent.service';
 import { Workspace, PromptBlock, PromptBlockType, PrismaClient } from '@prisma/client';
 
 export interface PromptGenerationOptions {
@@ -111,7 +111,6 @@ async function readSelectedFiles(
   selectedFilePaths: string[],
   ignorePatterns: string[]
 ): Promise<CodeFile[]> {
-  const agentService = new AgentService();
   const codeFiles: CodeFile[] = [];
 
   try {
@@ -146,8 +145,6 @@ async function readSelectedFiles(
  * Génère la structure du projet via l'agent
  */
 async function generateProjectStructure(workspacePath: string, ignorePatterns: string[]): Promise<string> {
-  const agentService = new AgentService();
-  
   try {
     // Vérifier si l'agent est disponible
     const isAgentRunning = await agentService.checkStatus();

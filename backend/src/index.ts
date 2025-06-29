@@ -9,7 +9,7 @@ import { promptRoutes } from './routes/prompt';
 import { internalRoutes } from './routes/internal';
 import { blocksRoutes } from './routes/blocks';
 import { compositionsRoutes } from './routes/compositions';
-import { setupWebSocket } from './services/websocket';
+import { setupWebSocket } from './services/websocket.service';
 import { logger } from './services/logger';
 
 const prisma = new PrismaClient();

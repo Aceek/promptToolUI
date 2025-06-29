@@ -1,4 +1,4 @@
-import { AgentService } from './agentService.js';
+import { agentService } from './agent.service';
 
 export interface FileNode {
   name: string;
@@ -8,8 +8,6 @@ export interface FileNode {
 }
 
 export async function generateStructure(sourcePath: string, ignorePatterns: string[]): Promise<FileNode[]> {
-  const agentService = new AgentService();
-  
   try {
     // Vérifier si l'agent est disponible
     const isAgentRunning = await agentService.checkStatus();
@@ -23,9 +21,6 @@ export async function generateStructure(sourcePath: string, ignorePatterns: stri
     throw new Error(`Failed to generate structure: ${error}`);
   }
 }
-
-// Les fonctions buildTree et isExcluded ne sont plus nécessaires car
-// elles sont maintenant gérées par l'agent de système de fichiers
 
 export function detectLanguage(extension: string): string {
   const langMap: Record<string, string> = {

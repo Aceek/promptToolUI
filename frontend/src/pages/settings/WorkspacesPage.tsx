@@ -1,31 +1,43 @@
 import React, { useState, useEffect } from 'react';
+import { useForm, SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAppStore, Workspace } from '../../store/useAppStore';
-
-const initialFormState = {
-  name: '',
-  path: '',
-  defaultCompositionId: '',
-  projectInfo: '',
-  ignorePatterns: [] as string[],
-};
+import { workspaceFormSchema, WorkspaceFormData } from '../../schemas/workspace.schema';
+import { toastService } from '../../services/toastService';
 
 const WorkspacesPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
-  const [formData, setFormData] = useState(initialFormState);
-  const [ignorePatternsText, setIgnorePatternsText] = useState('');
 
-  const { 
-    workspaces, 
+  const {
+    workspaces,
     compositions,
-    isLoading, 
-    error, 
-    loadWorkspaces, 
+    isLoading,
+    error,
+    loadWorkspaces,
     loadCompositions,
-    createWorkspace, 
-    updateWorkspace, 
-    deleteWorkspace 
+    createWorkspace,
+    updateWorkspace,
+    deleteWorkspace,
+    showConfirmation
   } = useAppStore();
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    reset,
+    setValue,
+  } = useForm<WorkspaceFormData>({
+    resolver: zodResolver(workspaceFormSchema),
+    defaultValues: {
+      name: '',
+      path: '',
+      defaultCompositionId: '',
+      projectInfo: '',
+      ignorePatterns: '',
+    }
+  });
 
   useEffect(() => {
     loadWorkspaces();
@@ -34,63 +46,88 @@ const WorkspacesPage = () => {
 
   const resetForm = () => {
     setEditingWorkspace(null);
-    setFormData(initialFormState);
-    setIgnorePatternsText('');
+    reset();
     setIsFormOpen(false);
   };
 
   const handleNew = () => {
     setEditingWorkspace(null);
-    setFormData(initialFormState);
-    setIgnorePatternsText('');
+    reset({
+      name: '',
+      path: '',
+      defaultCompositionId: '',
+      projectInfo: '',
+      ignorePatterns: '',
+    });
     setIsFormOpen(true);
   };
 
   const handleEdit = (workspace: Workspace) => {
     setEditingWorkspace(workspace);
-    setFormData({
-      name: workspace.name,
-      path: workspace.path,
-      defaultCompositionId: workspace.defaultCompositionId || '',
-      projectInfo: workspace.projectInfo || '',
-      ignorePatterns: workspace.ignorePatterns || [],
-    });
-    setIgnorePatternsText((workspace.ignorePatterns || []).join('\n'));
+    setValue('name', workspace.name);
+    setValue('path', workspace.path);
+    setValue('defaultCompositionId', workspace.defaultCompositionId || '');
+    setValue('projectInfo', workspace.projectInfo || '');
+    setValue('ignorePatterns', (workspace.ignorePatterns || []).join('\n'));
     setIsFormOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const ignorePatterns = ignorePatternsText
-      .split('\n')
-      .map(pattern => pattern.trim())
-      .filter(pattern => pattern.length > 0);
+  const onSubmit: SubmitHandler<WorkspaceFormData> = async (data) => {
+    const ignorePatterns = data.ignorePatterns
+      ? data.ignorePatterns
+          .split('\n')
+          .map(pattern => pattern.trim())
+          .filter(pattern => pattern.length > 0)
+      : [];
 
     const workspaceData = {
-      name: formData.name,
-      path: formData.path,
-      defaultCompositionId: formData.defaultCompositionId || undefined,
-      projectInfo: formData.projectInfo || undefined,
+      name: data.name,
+      path: data.path,
+      defaultCompositionId: data.defaultCompositionId || undefined,
+      projectInfo: data.projectInfo || undefined,
       ignorePatterns,
     };
 
+    const promise = editingWorkspace
+      ? updateWorkspace(editingWorkspace.id, workspaceData)
+      : createWorkspace(workspaceData);
+
+    toastService.promise(promise, {
+      loading: 'Sauvegarde en cours...',
+      success: editingWorkspace 
+        ? 'Espace de travail mis à jour avec succès !' 
+        : 'Espace de travail créé avec succès !',
+      error: 'Erreur lors de la sauvegarde de l\'espace de travail.',
+    });
+    
     try {
-      if (editingWorkspace) {
-        await updateWorkspace(editingWorkspace.id, workspaceData);
-      } else {
-        await createWorkspace(workspaceData);
-      }
+      await promise;
       resetForm();
     } catch (error) {
       console.error('Failed to save workspace:', error);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cet espace de travail ?')) {
-      await deleteWorkspace(id);
-    }
+  const handleDelete = (id: string, name: string) => {
+    showConfirmation(
+      `Supprimer "${name}" ?`,
+      "Cette action est irréversible. L'espace de travail et toutes ses données seront définitivement supprimés.",
+      async () => {
+        const promise = deleteWorkspace(id);
+        
+        toastService.promise(promise, {
+          loading: 'Suppression en cours...',
+          success: 'Espace de travail supprimé avec succès !',
+          error: 'Erreur lors de la suppression de l\'espace de travail.',
+        });
+
+        try {
+          await promise;
+        } catch (error) {
+          console.error('Failed to delete workspace:', error);
+        }
+      }
+    );
   };
 
   if (isLoading) {
@@ -139,7 +176,7 @@ const WorkspacesPage = () => {
                   Modifier
                 </button>
                 <button
-                  onClick={() => handleDelete(workspace.id)}
+                  onClick={() => handleDelete(workspace.id, workspace.name)}
                   className="text-red-600 hover:text-red-800 text-sm"
                 >
                   Supprimer
@@ -196,18 +233,21 @@ const WorkspacesPage = () => {
                 {editingWorkspace ? 'Modifier l\'espace de travail' : 'Nouvel espace de travail'}
               </h2>
               
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Nom de l'espace de travail
                   </label>
                   <input
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
+                    {...register('name')}
+                    className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      errors.name ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   />
+                  {errors.name && (
+                    <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
+                  )}
                 </div>
 
                 <div>
@@ -216,12 +256,15 @@ const WorkspacesPage = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.path}
-                    onChange={(e) => setFormData({ ...formData, path: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    {...register('path')}
+                    className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      errors.path ? 'border-red-300' : 'border-gray-300'
+                    }`}
                     placeholder="/chemin/vers/votre/projet"
-                    required
                   />
+                  {errors.path && (
+                    <p className="text-red-500 text-sm mt-1">{errors.path.message}</p>
+                  )}
                 </div>
 
                 <div>
@@ -229,8 +272,7 @@ const WorkspacesPage = () => {
                     Composition par défaut (optionnel)
                   </label>
                   <select
-                    value={formData.defaultCompositionId}
-                    onChange={(e) => setFormData({ ...formData, defaultCompositionId: e.target.value })}
+                    {...register('defaultCompositionId')}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Aucune composition par défaut</option>
@@ -240,6 +282,9 @@ const WorkspacesPage = () => {
                       </option>
                     ))}
                   </select>
+                  {errors.defaultCompositionId && (
+                    <p className="text-red-500 text-sm mt-1">{errors.defaultCompositionId.message}</p>
+                  )}
                 </div>
 
                 <div>
@@ -247,12 +292,14 @@ const WorkspacesPage = () => {
                     Informations du projet (optionnel)
                   </label>
                   <textarea
-                    value={formData.projectInfo}
-                    onChange={(e) => setFormData({ ...formData, projectInfo: e.target.value })}
+                    {...register('projectInfo')}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     rows={3}
                     placeholder="Description du projet, technologies utilisées, etc."
                   />
+                  {errors.projectInfo && (
+                    <p className="text-red-500 text-sm mt-1">{errors.projectInfo.message}</p>
+                  )}
                 </div>
 
                 <div>
@@ -260,8 +307,7 @@ const WorkspacesPage = () => {
                     Patterns d'exclusion (un par ligne)
                   </label>
                   <textarea
-                    value={ignorePatternsText}
-                    onChange={(e) => setIgnorePatternsText(e.target.value)}
+                    {...register('ignorePatterns')}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     rows={4}
                     placeholder="node_modules&#10;.git&#10;*.log&#10;dist"
@@ -269,6 +315,9 @@ const WorkspacesPage = () => {
                   <p className="text-xs text-gray-500 mt-1">
                     Fichiers et dossiers à exclure de la structure du projet
                   </p>
+                  {errors.ignorePatterns && (
+                    <p className="text-red-500 text-sm mt-1">{errors.ignorePatterns.message}</p>
+                  )}
                 </div>
 
                 <div className="flex justify-end space-x-3 pt-4">
@@ -276,14 +325,21 @@ const WorkspacesPage = () => {
                     type="button"
                     onClick={resetForm}
                     className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    disabled={isSubmitting}
                   >
                     Annuler
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    disabled={isSubmitting}
                   >
-                    {editingWorkspace ? 'Mettre à jour' : 'Créer'}
+                    {isSubmitting 
+                      ? 'Sauvegarde...' 
+                      : editingWorkspace 
+                        ? 'Mettre à jour' 
+                        : 'Créer'
+                    }
                   </button>
                 </div>
               </form>

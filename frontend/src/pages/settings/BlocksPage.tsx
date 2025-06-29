@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useForm, SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAppStore } from '../../store/useAppStore';
 import { PromptBlock } from '../../store/useAppStore';
 import { RESERVED_COLORS, DYNAMIC_TASK_BLOCK_COLOR } from '../../constants';
+import { blockFormSchema, BlockFormData } from '../../schemas/block.schema';
+import { toastService } from '../../services/toastService';
 
 const BLOCK_TYPES = [
   { value: 'STATIC', label: 'Statique', description: 'Bloc de texte simple' },
@@ -24,28 +28,21 @@ interface DynamicTaskContent {
 }
 
 export default function BlocksPage() {
-  const { 
-    blocks, 
-    loadBlocks, 
-    createBlock, 
-    updateBlock, 
-    deleteBlock, 
-    isLoading, 
-    error 
+  const {
+    blocks,
+    loadBlocks,
+    createBlock,
+    updateBlock,
+    deleteBlock,
+    isLoading,
+    error,
+    showConfirmation
   } = useAppStore();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<PromptBlock | null>(null);
   const [creationType, setCreationType] = useState<BlockCreationType>('text');
   const [showTypeSelection, setShowTypeSelection] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    name: '',
-    content: '',
-    type: 'STATIC' as PromptBlock['type'],
-    category: '',
-    color: PREDEFINED_COLORS[0]
-  });
 
   // État spécifique pour les blocs de tâche dynamique
   const [dynamicTaskData, setDynamicTaskData] = useState({
@@ -53,12 +50,33 @@ export default function BlocksPage() {
     suffix: ''
   });
 
+  const {
+    register,
+    handleSubmit: handleFormSubmit,
+    formState: { errors, isSubmitting },
+    reset,
+    setValue,
+    watch,
+  } = useForm<BlockFormData>({
+    resolver: zodResolver(blockFormSchema),
+    defaultValues: {
+      name: '',
+      content: '',
+      type: 'STATIC',
+      category: '',
+      color: PREDEFINED_COLORS[0]
+    }
+  });
+
+  const watchedType = watch('type');
+  const watchedColor = watch('color');
+
   useEffect(() => {
     loadBlocks();
   }, [loadBlocks]);
 
   const resetForm = () => {
-    setFormData({
+    reset({
       name: '',
       content: '',
       type: 'STATIC',
@@ -85,45 +103,44 @@ export default function BlocksPage() {
     setShowTypeSelection(false);
     
     if (type === 'dynamic_task') {
-      setFormData(prev => ({
-        ...prev,
-        type: 'DYNAMIC_TASK',
-        category: 'Tâche',
-        color: DYNAMIC_TASK_BLOCK_COLOR
-      }));
+      setValue('type', 'DYNAMIC_TASK');
+      setValue('category', 'Tâche');
+      setValue('color', DYNAMIC_TASK_BLOCK_COLOR);
     } else {
-      setFormData(prev => ({
-        ...prev,
-        type: 'STATIC'
-      }));
+      setValue('type', 'STATIC');
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit: SubmitHandler<BlockFormData> = async (data) => {
+    let finalFormData = { ...data };
     
+    // Si c'est un bloc de tâche dynamique, construire le JSON
+    if (data.type === 'DYNAMIC_TASK') {
+      finalFormData.content = JSON.stringify({
+        prefix: dynamicTaskData.prefix,
+        suffix: dynamicTaskData.suffix
+      });
+    }
+    
+    const promise = editingBlock
+      ? updateBlock(editingBlock.id, finalFormData)
+      : createBlock(finalFormData);
+
+    toastService.promise(promise, {
+      loading: 'Sauvegarde en cours...',
+      success: editingBlock
+        ? 'Bloc mis à jour avec succès !'
+        : 'Bloc créé avec succès !',
+      error: 'Erreur lors de la sauvegarde du bloc.',
+    });
+
     try {
-      let finalFormData = { ...formData };
-      
-      // Si c'est un bloc de tâche dynamique, construire le JSON
-      if (formData.type === 'DYNAMIC_TASK') {
-        finalFormData.content = JSON.stringify({
-          prefix: dynamicTaskData.prefix,
-          suffix: dynamicTaskData.suffix
-        });
-      }
-      
-      if (editingBlock) {
-        await updateBlock(editingBlock.id, finalFormData);
-      } else {
-        await createBlock(finalFormData);
-      }
-      
+      await promise;
       setIsModalOpen(false);
       setEditingBlock(null);
       resetForm();
     } catch (error) {
-      console.error('Failed to save block:', error);
+      // L'erreur est déjà gérée par toastService.promise
     }
   };
 
@@ -142,35 +159,37 @@ export default function BlocksPage() {
         setCreationType('dynamic_task');
       } catch (e) {
         // Fallback pour l'ancien format
-        setFormData(prev => ({ ...prev, content: block.content }));
+        setValue('content', block.content);
         setCreationType('text');
       }
     } else {
       setCreationType('text');
-      setFormData({
-        name: block.name,
-        content: block.content,
-        type: block.type,
-        category: block.category || '',
-        color: block.color || PREDEFINED_COLORS[0]
-      });
     }
     
-    setFormData({
-      name: block.name,
-      content: block.type === 'DYNAMIC_TASK' ? '' : block.content,
-      type: block.type,
-      category: block.category || '',
-      color: block.color || PREDEFINED_COLORS[0]
-    });
+    // Utiliser setValue pour tous les champs
+    setValue('name', block.name);
+    setValue('content', block.type === 'DYNAMIC_TASK' ? '' : block.content);
+    setValue('type', block.type);
+    setValue('category', block.category || '');
+    setValue('color', block.color || PREDEFINED_COLORS[0]);
     
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce bloc ?')) {
-      await deleteBlock(id);
-    }
+  const handleDelete = (id: string, name: string) => {
+    showConfirmation(
+      `Supprimer "${name}" ?`,
+      "Cette action est irréversible. Le bloc sera définitivement supprimé.",
+      async () => {
+        const promise = deleteBlock(id);
+        toastService.promise(promise, {
+          loading: 'Suppression en cours...',
+          success: 'Bloc supprimé avec succès !',
+          error: 'Erreur lors de la suppression du bloc.',
+        });
+        await promise;
+      }
+    );
   };
 
   // Séparer les blocs système des blocs personnalisés
@@ -284,7 +303,7 @@ export default function BlocksPage() {
                         </button>
                         {block.systemBehavior !== 'INDELETABLE' && (
                           <button
-                            onClick={() => handleDelete(block.id)}
+                            onClick={() => handleDelete(block.id, block.name)}
                             className="text-red-600 hover:text-red-800 text-sm"
                           >
                             Supprimer
@@ -386,18 +405,19 @@ export default function BlocksPage() {
                     {editingBlock ? 'Modifier le bloc' : 'Nouveau bloc'}
                   </h2>
                   
-                  <form onSubmit={handleSubmit} className="space-y-4">
+                  <form onSubmit={handleFormSubmit(onSubmit)} className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Nom du bloc
                       </label>
                       <input
                         type="text"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        {...register('name')}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required
                       />
+                      {errors.name && (
+                        <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
+                      )}
                     </div>
 
                     {editingBlock?.isSystemBlock && (
@@ -415,8 +435,7 @@ export default function BlocksPage() {
                           Type de bloc
                         </label>
                         <select
-                          value={formData.type}
-                          onChange={(e) => setFormData({ ...formData, type: e.target.value as PromptBlock['type'] })}
+                          {...register('type')}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           disabled={!!editingBlock}
                         >
@@ -442,8 +461,7 @@ export default function BlocksPage() {
                       ) : (
                         <input
                           type="text"
-                          value={formData.category}
-                          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                          {...register('category')}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="ex: Rôles, Instructions, Formats..."
                         />
@@ -461,9 +479,9 @@ export default function BlocksPage() {
                               <button
                                 key={color}
                                 type="button"
-                                onClick={() => setFormData({ ...formData, color })}
+                                onClick={() => setValue('color', color)}
                                 className={`w-8 h-8 rounded-full border-2 ${
-                                  formData.color === color ? 'border-gray-800' : 'border-gray-300'
+                                  watchedColor === color ? 'border-gray-800' : 'border-gray-300'
                                 }`}
                                 style={{ backgroundColor: color }}
                               />
@@ -476,9 +494,9 @@ export default function BlocksPage() {
                             <button
                               key={color}
                               type="button"
-                              onClick={() => setFormData({ ...formData, color })}
+                              onClick={() => setValue('color', color)}
                               className={`w-8 h-8 rounded-full border-2 ${
-                                formData.color === color ? 'border-gray-800' : 'border-gray-300'
+                                watchedColor === color ? 'border-gray-800' : 'border-gray-300'
                               }`}
                               style={{ backgroundColor: color }}
                             />
@@ -529,13 +547,14 @@ export default function BlocksPage() {
                               Contenu du bloc
                             </label>
                             <textarea
-                              value={formData.content}
-                              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                              {...register('content')}
                               rows={8}
                               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                               placeholder="Contenu du bloc..."
-                              required
                             />
+                            {errors.content && (
+                              <p className="text-red-500 text-sm mt-1">{errors.content.message}</p>
+                            )}
                           </div>
                         )}
                       </>
@@ -556,17 +575,19 @@ export default function BlocksPage() {
                       {!editingBlock?.isSystemBlock && (
                         <button
                           type="submit"
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          disabled={isSubmitting}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {editingBlock ? 'Mettre à jour' : 'Créer'}
+                          {isSubmitting ? 'Sauvegarde...' : (editingBlock ? 'Mettre à jour' : 'Créer')}
                         </button>
                       )}
                       {editingBlock?.isSystemBlock && (
                         <button
                           type="submit"
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          disabled={isSubmitting}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Mettre à jour
+                          {isSubmitting ? 'Sauvegarde...' : 'Mettre à jour'}
                         </button>
                       )}
                     </div>

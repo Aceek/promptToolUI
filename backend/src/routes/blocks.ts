@@ -1,5 +1,13 @@
 import { FastifyPluginAsync } from 'fastify';
 import { PrismaClient, PromptBlockType } from '@prisma/client';
+import {
+  blockIdParamSchema,
+  createBlockBodySchema,
+  updateBlockBodySchema,
+  BlockIdParam,
+  CreateBlockBody,
+  UpdateBlockBody,
+} from '../schemas/block.schema';
 
 const SYSTEM_CATEGORY_NAME = 'Blocs Fondamentaux';
 
@@ -30,7 +38,7 @@ export const blocksRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /api/blocks/:id - Récupérer un bloc spécifique
-  fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
+  fastify.get<{ Params: BlockIdParam }>('/:id', { schema: { params: blockIdParamSchema } }, async (request, reply) => {
     try {
       const { id } = request.params;
       
@@ -56,22 +64,9 @@ export const blocksRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /api/blocks - Créer un nouveau bloc
-  fastify.post<{
-    Body: {
-      name: string;
-      content: string;
-      type: PromptBlockType;
-      category?: string;
-      color?: string;
-    }
-  }>('/', async (request, reply) => {
+  fastify.post<{ Body: CreateBlockBody }>('/', { schema: { body: createBlockBodySchema } }, async (request, reply) => {
     try {
       const { name, content, type, category, color } = request.body;
-
-      // Validation basique
-      if (!name || !content) {
-        return reply.status(400).send({ error: 'Name and content are required' });
-      }
 
       if (category?.trim() === SYSTEM_CATEGORY_NAME) {
         return reply.status(403).send({ error: `The category "${SYSTEM_CATEGORY_NAME}" is reserved for system blocks.` });
@@ -118,15 +113,14 @@ export const blocksRoutes: FastifyPluginAsync = async (fastify) => {
 
   // PUT /api/blocks/:id - Mettre à jour un bloc
   fastify.put<{
-    Params: { id: string };
-    Body: {
-      name?: string;
-      content?: string;
-      type?: PromptBlockType;
-      category?: string;
-      color?: string;
+    Params: BlockIdParam;
+    Body: UpdateBlockBody;
+  }>('/:id', {
+    schema: {
+      params: blockIdParamSchema,
+      body: updateBlockBodySchema
     }
-  }>('/:id', async (request, reply) => {
+  }, async (request, reply) => {
     try {
       const { id } = request.params;
       const { name, content, type, category, color } = request.body;
@@ -180,7 +174,7 @@ export const blocksRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // DELETE /api/blocks/:id - Supprimer un bloc
-  fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
+  fastify.delete<{ Params: BlockIdParam }>('/:id', { schema: { params: blockIdParamSchema } }, async (request, reply) => {
     try {
       const { id } = request.params;
 

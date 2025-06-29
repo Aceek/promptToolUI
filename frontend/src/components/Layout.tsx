@@ -1,4 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
+import { ConfirmModal } from './index';
 
 const Layout = () => {
   const location = useLocation();
@@ -70,6 +71,9 @@ const Layout = () => {
           <Outlet />
         </main>
       </div>
+      
+      {/* Modale de confirmation globale */}
+      <ConfirmModal />
     </div>
   );
 };

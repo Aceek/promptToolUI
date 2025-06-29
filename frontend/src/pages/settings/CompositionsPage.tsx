@@ -1,104 +1,132 @@
 import React, { useState, useEffect } from 'react';
+import { useForm, SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAppStore } from '../../store/useAppStore';
 import { PromptComposition, PromptBlock } from '../../store/useAppStore';
+import { compositionFormSchema, CompositionFormData } from '../../schemas/composition.schema';
+import { toastService } from '../../services/toastService';
 
 export default function CompositionsPage() {
-  const { 
-    compositions, 
+  const {
+    compositions,
     blocks,
-    loadCompositions, 
+    loadCompositions,
     loadBlocks,
-    createComposition, 
-    updateComposition, 
-    deleteComposition, 
-    isLoading, 
-    error 
+    createComposition,
+    updateComposition,
+    deleteComposition,
+    isLoading,
+    error,
+    showConfirmation
   } = useAppStore();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingComposition, setEditingComposition] = useState<PromptComposition | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    selectedBlockIds: [] as string[]
+
+  const {
+    register,
+    handleSubmit: handleFormSubmit,
+    formState: { errors, isSubmitting },
+    reset,
+    setValue,
+    watch,
+  } = useForm<CompositionFormData>({
+    resolver: zodResolver(compositionFormSchema),
+    defaultValues: {
+      name: '',
+      selectedBlockIds: []
+    }
   });
+
+  const watchedSelectedBlockIds = watch('selectedBlockIds');
 
   useEffect(() => {
     loadCompositions();
     loadBlocks();
   }, [loadCompositions, loadBlocks]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const onSubmit: SubmitHandler<CompositionFormData> = async (data) => {
+    const promise = editingComposition
+      ? updateComposition(editingComposition.id, {
+          name: data.name,
+          blockIds: data.selectedBlockIds
+        })
+      : createComposition({
+          name: data.name,
+          blockIds: data.selectedBlockIds
+        });
+
+    toastService.promise(promise, {
+      loading: 'Sauvegarde en cours...',
+      success: editingComposition 
+        ? 'Composition mise à jour avec succès !' 
+        : 'Composition créée avec succès !',
+      error: 'Erreur lors de la sauvegarde de la composition.',
+    });
+
     try {
-      if (editingComposition) {
-        await updateComposition(editingComposition.id, {
-          name: formData.name,
-          blockIds: formData.selectedBlockIds
-        });
-      } else {
-        await createComposition({
-          name: formData.name,
-          blockIds: formData.selectedBlockIds
-        });
-      }
-      
+      await promise;
       setIsModalOpen(false);
       setEditingComposition(null);
-      setFormData({
-        name: '',
-        selectedBlockIds: []
-      });
+      reset();
     } catch (error) {
-      console.error('Failed to save composition:', error);
+      // L'erreur est déjà gérée par toastService.promise
     }
   };
 
   const handleEdit = (composition: PromptComposition) => {
     setEditingComposition(composition);
-    setFormData({
-      name: composition.name,
-      selectedBlockIds: composition.blocks
-        .sort((a, b) => a.order - b.order)
-        .map(cb => cb.blockId)
-    });
+    const selectedBlockIds = composition.blocks
+      .sort((a, b) => a.order - b.order)
+      .map(cb => cb.blockId);
+    
+    setValue('name', composition.name);
+    setValue('selectedBlockIds', selectedBlockIds);
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette composition ?')) {
-      await deleteComposition(id);
-    }
+  const handleDelete = (id: string, name: string) => {
+    showConfirmation(
+      `Supprimer "${name}" ?`,
+      "Cette action est irréversible. La composition sera définitivement supprimée.",
+      async () => {
+        const promise = deleteComposition(id);
+        toastService.promise(promise, {
+          loading: 'Suppression en cours...',
+          success: 'Composition supprimée avec succès !',
+          error: 'Erreur lors de la suppression de la composition.',
+        });
+        await promise;
+      }
+    );
   };
 
   const handleBlockToggle = (blockId: string) => {
-    const isSelected = formData.selectedBlockIds.includes(blockId);
+    const currentSelectedBlockIds = watchedSelectedBlockIds || [];
+    const isSelected = currentSelectedBlockIds.includes(blockId);
+    
     if (isSelected) {
-      setFormData({
-        ...formData,
-        selectedBlockIds: formData.selectedBlockIds.filter(id => id !== blockId)
-      });
+      setValue('selectedBlockIds', currentSelectedBlockIds.filter(id => id !== blockId));
     } else {
-      setFormData({
-        ...formData,
-        selectedBlockIds: [...formData.selectedBlockIds, blockId]
-      });
+      setValue('selectedBlockIds', [...currentSelectedBlockIds, blockId]);
     }
   };
 
   const moveBlock = (fromIndex: number, toIndex: number) => {
-    const newSelectedBlockIds = [...formData.selectedBlockIds];
-    const [removed] = newSelectedBlockIds.splice(fromIndex, 1);
-    newSelectedBlockIds.splice(toIndex, 0, removed);
-    setFormData({
-      ...formData,
-      selectedBlockIds: newSelectedBlockIds
-    });
+    const currentSelectedBlockIds = [...(watchedSelectedBlockIds || [])];
+    const [removed] = currentSelectedBlockIds.splice(fromIndex, 1);
+    currentSelectedBlockIds.splice(toIndex, 0, removed);
+    setValue('selectedBlockIds', currentSelectedBlockIds);
   };
 
   const getBlockById = (id: string) => blocks.find(b => b.id === id);
 
-  const groupedBlocks = blocks.reduce((acc, block) => {
+  // Séparer les blocs système des blocs personnalisés
+  const systemBlocks = blocks.filter(b => b.isSystemBlock);
+  const customBlocks = blocks.filter(b => !b.isSystemBlock);
+  
+  // Grouper les blocs personnalisés par catégorie
+  const groupedCustomBlocks = customBlocks.reduce((acc, block) => {
     const category = block.category || 'Sans catégorie';
     if (!acc[category]) {
       acc[category] = [];
@@ -106,6 +134,12 @@ export default function CompositionsPage() {
     acc[category].push(block);
     return acc;
   }, {} as Record<string, PromptBlock[]>);
+
+  // Créer l'objet final avec les blocs système en premier
+  const groupedBlocks = {
+    ...(systemBlocks.length > 0 && { 'Blocs Fondamentaux': systemBlocks }),
+    ...groupedCustomBlocks
+  };
 
   if (isLoading) {
     return (
@@ -120,13 +154,17 @@ export default function CompositionsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Gestion des Compositions</h1>
-          <p className="text-gray-600">Créez et gérez vos assemblages de blocs sauvegardés</p>
+          <p className="text-gray-600">Créez et gérez vos compositions de blocs</p>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setEditingComposition(null);
+            reset();
+            setIsModalOpen(true);
+          }}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
-          Nouvelle Composition
+          + Nouvelle Composition
         </button>
       </div>
 
@@ -136,15 +174,15 @@ export default function CompositionsPage() {
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {compositions.map((composition) => (
           <div
             key={composition.id}
-            className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+            className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
           >
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">{composition.name}</h3>
-              <div className="flex space-x-2">
+            <div className="flex items-start justify-between mb-3">
+              <h3 className="font-medium text-gray-900">{composition.name}</h3>
+              <div className="flex space-x-1">
                 <button
                   onClick={() => handleEdit(composition)}
                   className="text-blue-600 hover:text-blue-800 text-sm"
@@ -152,7 +190,7 @@ export default function CompositionsPage() {
                   Modifier
                 </button>
                 <button
-                  onClick={() => handleDelete(composition.id)}
+                  onClick={() => handleDelete(composition.id, composition.name)}
                   className="text-red-600 hover:text-red-800 text-sm"
                 >
                   Supprimer
@@ -160,33 +198,31 @@ export default function CompositionsPage() {
               </div>
             </div>
             
-            <div className="space-y-2">
-              <p className="text-sm text-gray-600">
-                {composition.blocks.length} bloc(s)
-              </p>
-              
-              <div className="space-y-1">
-                {composition.blocks
-                  .sort((a, b) => a.order - b.order)
-                  .slice(0, 3)
-                  .map((cb, index) => (
-                    <div key={cb.id} className="flex items-center space-x-2">
-                      <span className="text-xs text-gray-500">{index + 1}.</span>
+            <div className="text-sm text-gray-600">
+              {composition.blocks.length} bloc(s)
+            </div>
+            
+            <div className="mt-3 space-y-1">
+              {composition.blocks
+                .sort((a, b) => a.order - b.order)
+                .slice(0, 3)
+                .map((cb) => {
+                  const block = getBlockById(cb.blockId);
+                  return block ? (
+                    <div key={cb.blockId} className="flex items-center space-x-2">
                       <div
                         className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: cb.block.color || '#6B7280' }}
+                        style={{ backgroundColor: block.color || '#6B7280' }}
                       ></div>
-                      <span className="text-sm text-gray-700 truncate">
-                        {cb.block.name}
-                      </span>
+                      <span className="text-xs text-gray-600 truncate">{block.name}</span>
                     </div>
-                  ))}
-                {composition.blocks.length > 3 && (
-                  <p className="text-xs text-gray-500">
-                    ... et {composition.blocks.length - 3} autre(s)
-                  </p>
-                )}
-              </div>
+                  ) : null;
+                })}
+              {composition.blocks.length > 3 && (
+                <div className="text-xs text-gray-500">
+                  +{composition.blocks.length - 3} autres blocs...
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -201,118 +237,140 @@ export default function CompositionsPage() {
                 {editingComposition ? 'Modifier la composition' : 'Nouvelle composition'}
               </h2>
               
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form onSubmit={handleFormSubmit(onSubmit)} className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Nom de la composition
                   </label>
                   <input
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    {...register('name')}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
+                    placeholder="ex: Prompt Expert React"
                   />
+                  {errors.name && (
+                    <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Blocs disponibles */}
+                  {/* Sélection des blocs */}
                   <div>
                     <h3 className="text-lg font-medium text-gray-900 mb-3">Blocs disponibles</h3>
-                    <div className="border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
-                      {Object.entries(groupedBlocks).map(([category, categoryBlocks]) => (
-                        <div key={category} className="border-b border-gray-100 last:border-b-0">
-                          <div className="bg-gray-50 px-3 py-2">
-                            <h4 className="text-sm font-medium text-gray-700">{category}</h4>
-                          </div>
-                          <div className="p-2 space-y-1">
-                            {categoryBlocks.map((block) => (
-                              <div
-                                key={block.id}
-                                className={`flex items-center space-x-2 p-2 rounded cursor-pointer hover:bg-gray-50 ${
-                                  formData.selectedBlockIds.includes(block.id) ? 'bg-blue-50 border border-blue-200' : ''
-                                }`}
-                                onClick={() => handleBlockToggle(block.id)}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={formData.selectedBlockIds.includes(block.id)}
-                                  onChange={() => handleBlockToggle(block.id)}
-                                  className="rounded border-gray-300"
-                                />
+                    <div className="space-y-4 max-h-96 overflow-y-auto">
+                      {Object.entries(groupedBlocks).map(([category, categoryBlocks]) => {
+                        const isSystemCategory = category === 'Blocs Fondamentaux';
+                        return (
+                          <div key={category} className="space-y-2">
+                            <h4 className={`text-sm font-medium ${
+                              isSystemCategory ? 'text-blue-900' : 'text-gray-700'
+                            }`}>
+                              {isSystemCategory && '⚙️ '}{category}
+                            </h4>
+                            <div className="space-y-1">
+                              {categoryBlocks.map((block) => (
                                 <div
-                                  className="w-3 h-3 rounded-full"
-                                  style={{ backgroundColor: block.color || '#6B7280' }}
-                                ></div>
-                                <span className="text-sm text-gray-900 flex-1">{block.name}</span>
-                              </div>
-                            ))}
+                                  key={block.id}
+                                  className={`p-2 border rounded cursor-pointer hover:bg-gray-50 ${
+                                    (watchedSelectedBlockIds || []).includes(block.id) ? 'bg-blue-50 border border-blue-200' : ''
+                                  }`}
+                                  onClick={() => handleBlockToggle(block.id)}
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={(watchedSelectedBlockIds || []).includes(block.id)}
+                                      onChange={() => handleBlockToggle(block.id)}
+                                      className="rounded"
+                                    />
+                                    <div
+                                      className="w-3 h-3 rounded-full"
+                                      style={{ backgroundColor: block.color || '#6B7280' }}
+                                    ></div>
+                                    <span className="text-sm font-medium">{block.name}</span>
+                                    {block.isSystemBlock && (
+                                      <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded">
+                                        Système
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                    {block.content.substring(0, 100)}
+                                    {block.content.length > 100 && '...'}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* Composition actuelle */}
+                  {/* Aperçu de la composition */}
                   <div>
                     <h3 className="text-lg font-medium text-gray-900 mb-3">
-                      Composition ({formData.selectedBlockIds.length} blocs)
+                      Composition ({(watchedSelectedBlockIds || []).length} blocs)
                     </h3>
-                    <div className="border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
-                      {formData.selectedBlockIds.length === 0 ? (
-                        <div className="p-8 text-center text-gray-500">
-                          Sélectionnez des blocs pour créer votre composition
+                    <div className="border border-gray-200 rounded-lg p-4 min-h-96 max-h-96 overflow-y-auto">
+                      {(watchedSelectedBlockIds || []).length === 0 ? (
+                        <div className="text-center text-gray-500 py-8">
+                          <p>Sélectionnez des blocs pour créer votre composition</p>
                         </div>
                       ) : (
-                        <div className="p-2 space-y-1">
-                          {formData.selectedBlockIds.map((blockId, index) => {
+                        <div className="space-y-2">
+                          {(watchedSelectedBlockIds || []).map((blockId, index) => {
                             const block = getBlockById(blockId);
                             if (!block) return null;
                             
                             return (
                               <div
-                                key={`${blockId}-${index}`}
-                                className="flex items-center space-x-2 p-2 bg-gray-50 rounded border"
+                                key={blockId}
+                                className="border border-gray-200 rounded p-3 bg-gray-50"
                               >
-                                <span className="text-xs text-gray-500 w-6">{index + 1}.</span>
-                                <div
-                                  className="w-3 h-3 rounded-full"
-                                  style={{ backgroundColor: block.color || '#6B7280' }}
-                                ></div>
-                                <span className="text-sm text-gray-900 flex-1">{block.name}</span>
-                                <div className="flex space-x-1">
-                                  {index > 0 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => moveBlock(index, index - 1)}
-                                      className="text-gray-400 hover:text-gray-600"
-                                    >
-                                      ↑
-                                    </button>
-                                  )}
-                                  {index < formData.selectedBlockIds.length - 1 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => moveBlock(index, index + 1)}
-                                      className="text-gray-400 hover:text-gray-600"
-                                    >
-                                      ↓
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleBlockToggle(blockId)}
-                                    className="text-red-400 hover:text-red-600"
-                                  >
-                                    ×
-                                  </button>
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-sm font-medium text-gray-600">#{index + 1}</span>
+                                    <div
+                                      className="w-3 h-3 rounded-full"
+                                      style={{ backgroundColor: block.color || '#6B7280' }}
+                                    ></div>
+                                    <span className="text-sm font-medium">{block.name}</span>
+                                  </div>
+                                  <div className="flex space-x-1">
+                                    {index > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => moveBlock(index, index - 1)}
+                                        className="text-gray-400 hover:text-gray-600"
+                                      >
+                                        ↑
+                                      </button>
+                                    )}
+                                    {index < (watchedSelectedBlockIds || []).length - 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => moveBlock(index, index + 1)}
+                                        className="text-gray-400 hover:text-gray-600"
+                                      >
+                                        ↓
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
+                                <p className="text-xs text-gray-600 line-clamp-2">
+                                  {block.content.substring(0, 150)}
+                                  {block.content.length > 150 && '...'}
+                                </p>
                               </div>
                             );
                           })}
                         </div>
                       )}
                     </div>
+                    {errors.selectedBlockIds && (
+                      <p className="text-red-500 text-sm mt-1">{errors.selectedBlockIds.message}</p>
+                    )}
                   </div>
                 </div>
 
@@ -322,10 +380,7 @@ export default function CompositionsPage() {
                     onClick={() => {
                       setIsModalOpen(false);
                       setEditingComposition(null);
-                      setFormData({
-                        name: '',
-                        selectedBlockIds: []
-                      });
+                      reset();
                     }}
                     className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                   >
@@ -333,10 +388,10 @@ export default function CompositionsPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={formData.selectedBlockIds.length === 0}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    disabled={isSubmitting || (watchedSelectedBlockIds || []).length === 0}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {editingComposition ? 'Mettre à jour' : 'Créer'}
+                    {isSubmitting ? 'Sauvegarde...' : (editingComposition ? 'Mettre à jour' : 'Créer')}
                   </button>
                 </div>
               </form>

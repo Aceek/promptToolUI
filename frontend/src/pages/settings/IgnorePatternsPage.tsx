@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 
 // Importez le service API
 import { settingsApi } from '../../services/api';
+import { toastService } from '../../services/toastService';
 
 interface Settings {
   id: number;
@@ -31,13 +32,19 @@ const IgnorePatternsPage = () => {
   };
 
   const saveSettings = async () => {
+    const promise = settingsApi.update({ globalIgnorePatterns: patterns });
+    
+    toastService.promise(promise, {
+      loading: 'Sauvegarde en cours...',
+      success: 'Paramètres sauvegardés avec succès !',
+      error: 'Erreur lors de la sauvegarde',
+    });
+
     try {
-      await settingsApi.update({ globalIgnorePatterns: patterns });
-      alert('Paramètres sauvegardés avec succès !');
+      await promise;
       fetchSettings();
     } catch (error) {
       console.error('Erreur:', error);
-      alert('Erreur lors de la sauvegarde');
     }
   };
 

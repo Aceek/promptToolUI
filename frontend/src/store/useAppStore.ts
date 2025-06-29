@@ -59,6 +59,13 @@ export interface FileNode {
   children?: FileNode[];
 }
 
+interface ConfirmationState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+}
+
 interface AppState {
   // État des workspaces
   workspaces: Workspace[];
@@ -76,6 +83,9 @@ interface AppState {
   generatedPrompt: string;
   isLoading: boolean;
   error: string | null;
+  
+  // État de confirmation
+  confirmation: ConfirmationState;
   
   // Actions pour les workspaces
   fetchWorkspaces: () => Promise<void>;
@@ -116,6 +126,10 @@ interface AppState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearError: () => void;
+  
+  // Actions de confirmation
+  showConfirmation: (title: string, message: string, onConfirm: () => void) => void;
+  hideConfirmation: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -133,6 +147,14 @@ export const useAppStore = create<AppState>()(
       generatedPrompt: '',
       isLoading: false,
       error: null,
+      
+      // État de confirmation initial
+      confirmation: {
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+      },
 
       // Actions pour les workspaces
       fetchWorkspaces: async () => {
@@ -378,6 +400,29 @@ export const useAppStore = create<AppState>()(
       setLoading: (loading) => set({ isLoading: loading }),
       setError: (error) => set({ error }),
       clearError: () => set({ error: null }),
+      
+      // Actions de confirmation
+      showConfirmation: (title, message, onConfirm) => {
+        set({
+          confirmation: {
+            isOpen: true,
+            title,
+            message,
+            onConfirm,
+          },
+        });
+      },
+      
+      hideConfirmation: () => {
+        set({
+          confirmation: {
+            isOpen: false,
+            title: '',
+            message: '',
+            onConfirm: () => {},
+          },
+        });
+      },
     }),
     {
       name: 'app-store',

@@ -1,5 +1,9 @@
 import { FastifyPluginAsync } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import {
+  updateSettingsBodySchema,
+  UpdateSettingsBody,
+} from '../schemas/settings.schema';
 
 export const settingRoutes: FastifyPluginAsync = async (fastify) => {
   const prisma: PrismaClient = fastify.prisma;
@@ -107,11 +111,7 @@ export const settingRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // PUT /api/settings - Update global settings
-  fastify.put<{
-    Body: {
-      globalIgnorePatterns?: string[];
-    }
-  }>('/', async (request, reply) => {
+  fastify.put<{ Body: UpdateSettingsBody }>('/', { schema: { body: updateSettingsBodySchema } }, async (request, reply) => {
     try {
       const { globalIgnorePatterns } = request.body;
 

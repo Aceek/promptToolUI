@@ -1,5 +1,13 @@
 import { FastifyPluginAsync } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import {
+  compositionIdParamSchema,
+  createCompositionBodySchema,
+  updateCompositionBodySchema,
+  CompositionIdParam,
+  CreateCompositionBody,
+  UpdateCompositionBody,
+} from '../schemas/composition.schema';
 
 export const compositionsRoutes: FastifyPluginAsync = async (fastify) => {
   const prisma: PrismaClient = fastify.prisma;
@@ -37,7 +45,7 @@ export const compositionsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /api/compositions/:id - Récupérer une composition spécifique
-  fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
+  fastify.get<{ Params: CompositionIdParam }>('/:id', { schema: { params: compositionIdParamSchema } }, async (request, reply) => {
     try {
       const { id } = request.params;
       
@@ -73,23 +81,9 @@ export const compositionsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /api/compositions - Créer une nouvelle composition
-  fastify.post<{
-    Body: {
-      name: string;
-      blockIds: string[]; // Liste ordonnée des IDs de blocs
-    }
-  }>('/', async (request, reply) => {
+  fastify.post<{ Body: CreateCompositionBody }>('/', { schema: { body: createCompositionBodySchema } }, async (request, reply) => {
     try {
       const { name, blockIds } = request.body;
-
-      // Validation basique
-      if (!name) {
-        return reply.status(400).send({ error: 'Name is required' });
-      }
-
-      if (!blockIds || !Array.isArray(blockIds)) {
-        return reply.status(400).send({ error: 'blockIds must be an array' });
-      }
 
       // Vérifier que tous les blocs existent
       const existingBlocks = await prisma.promptBlock.findMany({
@@ -138,12 +132,14 @@ export const compositionsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // PUT /api/compositions/:id - Mettre à jour une composition
   fastify.put<{
-    Params: { id: string };
-    Body: {
-      name?: string;
-      blockIds?: string[]; // Nouvelle liste ordonnée des IDs de blocs
+    Params: CompositionIdParam;
+    Body: UpdateCompositionBody
+  }>('/:id', {
+    schema: {
+      params: compositionIdParamSchema,
+      body: updateCompositionBodySchema
     }
-  }>('/:id', async (request, reply) => {
+  }, async (request, reply) => {
     try {
       const { id } = request.params;
       const { name, blockIds } = request.body;
@@ -224,7 +220,7 @@ export const compositionsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // DELETE /api/compositions/:id - Supprimer une composition
-  fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
+  fastify.delete<{ Params: CompositionIdParam }>('/:id', { schema: { params: compositionIdParamSchema } }, async (request, reply) => {
     try {
       const { id } = request.params;
 

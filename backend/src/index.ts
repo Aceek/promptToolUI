@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { Server } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
+import { ZodTypeProvider, serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import { workspaceRoutes } from './routes/workspaces';
 import { settingRoutes } from './routes/settings';
 import { promptRoutes } from './routes/prompt';
@@ -16,7 +17,11 @@ const prisma = new PrismaClient();
 async function buildServer() {
   const fastify = Fastify({
     logger: false, // Désactivation du logger par défaut de Fastify
-  });
+  }).withTypeProvider<ZodTypeProvider>();
+
+  // Configurer les compilateurs Zod
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
 
   // Register CORS
   await fastify.register(cors, {

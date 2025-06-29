@@ -3,6 +3,7 @@ import { useAppStore, FileNode, PromptBlock } from '../store/useAppStore';
 import { workspaceApi } from '../services/api';
 import { websocketService } from '../services/websocket';
 import { FileTree } from '../components';
+import { toastService } from '../services/toastService';
 
 interface CompositionBlock {
   id: string;
@@ -132,12 +133,12 @@ const MainPage = () => {
 
   const handleGeneratePrompt = async () => {
     if (!selectedWorkspace) {
-      alert('Veuillez sélectionner un espace de travail');
+      toastService.error('Veuillez sélectionner un espace de travail');
       return;
     }
 
     if (currentComposition.length === 0) {
-      alert('Veuillez ajouter au moins un bloc à votre composition');
+      toastService.error('Veuillez ajouter au moins un bloc à votre composition');
       return;
     }
 
@@ -171,7 +172,7 @@ const MainPage = () => {
       }
     } catch (error) {
       console.error('Erreur:', error);
-      alert('Erreur lors de la génération du prompt');
+      toastService.error('Erreur lors de la génération du prompt');
     } finally {
       setIsGenerating(false);
     }
@@ -179,7 +180,7 @@ const MainPage = () => {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(localGeneratedPrompt);
-    alert('Prompt copié dans le presse-papiers !');
+    toastService.success('Prompt copié dans le presse-papiers !');
   };
 
   const handleWorkspaceChange = (workspaceId: string) => {

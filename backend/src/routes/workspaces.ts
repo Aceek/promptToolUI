@@ -1,5 +1,13 @@
 import { FastifyPluginAsync } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import {
+  workspaceIdParamSchema,
+  createWorkspaceBodySchema,
+  updateWorkspaceBodySchema,
+  WorkspaceIdParam,
+  CreateWorkspaceBody,
+  UpdateWorkspaceBody,
+} from '../schemas/workspace.schema';
 
 export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
   const prisma: PrismaClient = fastify.prisma;
@@ -23,7 +31,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /api/workspaces/:id - Get a specific workspace
-  fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
+  fastify.get<{ Params: WorkspaceIdParam }>('/:id', { schema: { params: workspaceIdParamSchema } }, async (request, reply) => {
     try {
       const { id } = request.params;
       const workspace = await prisma.workspace.findUnique({
@@ -46,15 +54,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /api/workspaces - Create a new workspace
-  fastify.post<{
-    Body: {
-      name: string;
-      path: string;
-      defaultCompositionId?: string;
-      ignorePatterns?: string[];
-      projectInfo?: string;
-    }
-  }>('/', async (request, reply) => {
+  fastify.post<{ Body: CreateWorkspaceBody }>('/', { schema: { body: createWorkspaceBodySchema } }, async (request, reply) => {
     try {
       const {
         name,
@@ -94,20 +94,17 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
 
   // PUT /api/workspaces/:id - Update a workspace
   fastify.put<{
-    Params: { id: string };
-    Body: {
-      name?: string;
-      path?: string;
-      selectedFiles?: string[];
-      lastFinalRequest?: string;
-      defaultCompositionId?: string | null;
-      ignorePatterns?: string[];
-      projectInfo?: string;
+    Params: WorkspaceIdParam;
+    Body: UpdateWorkspaceBody;
+  }>('/:id', {
+    schema: {
+      params: workspaceIdParamSchema,
+      body: updateWorkspaceBodySchema
     }
-  }>('/:id', async (request, reply) => {
+  }, async (request, reply) => {
     try {
       const { id } = request.params;
-      const updateData = { ...request.body };
+      const updateData: any = { ...request.body };
 
       // Convertir les undefined en null pour les champs optionnels
       if ('defaultCompositionId' in updateData && updateData.defaultCompositionId === undefined) {
@@ -134,7 +131,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // DELETE /api/workspaces/:id - Delete a workspace
-  fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
+  fastify.delete<{ Params: WorkspaceIdParam }>('/:id', { schema: { params: workspaceIdParamSchema } }, async (request, reply) => {
     try {
       const { id } = request.params;
 

@@ -42,30 +42,37 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  // POST /api/prompt/generate - Generate final prompt
+  // POST /api/prompt/generate - Generate final prompt using modular blocks
   fastify.post<{
     Body: {
       workspaceId: string;
+      orderedBlockIds: string[]; // Liste ordonnée des IDs de blocs à assembler
       finalRequest?: string;
       selectedFilePaths?: string[];
-      formatId?: string;
-      roleId?: string;
-      includeProjectInfo: boolean;
-      includeStructure: boolean;
-      promptTemplateId?: string;
     }
   }>('/generate', async (request, reply) => {
     try {
-      const { 
-        workspaceId, 
-        finalRequest = '', 
-        selectedFilePaths = [], 
-        formatId, 
-        roleId,
-        includeProjectInfo,
-        includeStructure,
-        promptTemplateId
+      // 🪲 DEBUG: Log du body reçu
+      console.log('🔍 DEBUG BACKEND - request.body reçu:', JSON.stringify(request.body, null, 2));
+      
+      const {
+        workspaceId,
+        orderedBlockIds,
+        finalRequest = '',
+        selectedFilePaths = []
       } = request.body;
+
+      // 🪲 DEBUG: Log des valeurs extraites
+      console.log('🔍 DEBUG BACKEND - workspaceId:', workspaceId);
+      console.log('🔍 DEBUG BACKEND - orderedBlockIds:', orderedBlockIds);
+      console.log('🔍 DEBUG BACKEND - orderedBlockIds type:', typeof orderedBlockIds);
+      console.log('🔍 DEBUG BACKEND - orderedBlockIds isArray:', Array.isArray(orderedBlockIds));
+
+      // Validation
+      if (!orderedBlockIds || !Array.isArray(orderedBlockIds) || orderedBlockIds.length === 0) {
+        console.log('🚨 DEBUG BACKEND - Validation échouée pour orderedBlockIds');
+        return reply.status(400).send({ error: 'orderedBlockIds is required and must be a non-empty array' });
+      }
 
       // Fetch workspace (required)
       const workspace = await prisma.workspace.findUnique({
@@ -77,30 +84,13 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
         return;
       }
 
-      // Fetch format (optional)
-      let format = null;
-      if (formatId) {
-        format = await prisma.format.findUnique({
-          where: { id: formatId }
-        });
+      // Vérifier que tous les blocs existent
+      const blocks = await prisma.promptBlock.findMany({
+        where: { id: { in: orderedBlockIds } }
+      });
 
-        if (!format) {
-          reply.status(404).send({ error: 'Format not found' });
-          return;
-        }
-      }
-
-      // Fetch role (optional)
-      let role = null;
-      if (roleId) {
-        role = await prisma.role.findUnique({
-          where: { id: roleId }
-        });
-
-        if (!role) {
-          reply.status(404).send({ error: 'Role not found' });
-          return;
-        }
+      if (blocks.length !== orderedBlockIds.length) {
+        return reply.status(400).send({ error: 'Some blocks do not exist' });
       }
 
       // Get global ignore patterns
@@ -122,34 +112,126 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
       });
 
       fastify.appLogger.business({
-        action: 'Prompt Generation Started',
-        details: `for workspace "${workspace.name}" with ${selectedFilePaths.length} files`,
+        action: 'Modular Prompt Generation Started',
+        details: `for workspace "${workspace.name}" with ${orderedBlockIds.length} blocks and ${selectedFilePaths.length} files`,
+        resourceId: workspace.id
+      });
+      
+      // Generate the prompt using the new modular system
+      const prompt = await generatePrompt({
+        prisma,
+        workspace,
+        orderedBlockIds,
+        finalRequest,
+        selectedFilePaths,
+        ignorePatterns: allIgnorePatterns
+      });
+
+      fastify.appLogger.business({
+        action: 'Modular Prompt Generated',
+        details: `successfully for workspace "${workspace.name}"`,
+        resourceId: workspace.id
+      });
+      
+      return { prompt };
+    } catch (error) {
+      fastify.appLogger.error(`Failed to generate modular prompt for workspace ${request.body.workspaceId}: ${error}`);
+      return reply.status(500).send({ error: 'Failed to generate prompt' });
+    }
+  });
+
+  // POST /api/prompt/generate-from-composition - Generate prompt from a saved composition
+  fastify.post<{
+    Body: {
+      workspaceId: string;
+      compositionId: string;
+      finalRequest?: string;
+      selectedFilePaths?: string[];
+    }
+  }>('/generate-from-composition', async (request, reply) => {
+    try {
+      const { 
+        workspaceId, 
+        compositionId,
+        finalRequest = '', 
+        selectedFilePaths = []
+      } = request.body;
+
+      // Fetch workspace
+      const workspace = await prisma.workspace.findUnique({
+        where: { id: workspaceId }
+      });
+
+      if (!workspace) {
+        return reply.status(404).send({ error: 'Workspace not found' });
+      }
+
+      // Fetch composition with blocks
+      const composition = await prisma.promptComposition.findUnique({
+        where: { id: compositionId },
+        include: {
+          blocks: {
+            include: {
+              block: true
+            },
+            orderBy: {
+              order: 'asc'
+            }
+          }
+        }
+      });
+
+      if (!composition) {
+        return reply.status(404).send({ error: 'Composition not found' });
+      }
+
+      // Extract ordered block IDs from composition
+      const orderedBlockIds = composition.blocks.map(cb => cb.blockId);
+
+      // Get global ignore patterns
+      const settings = await prisma.setting.findFirst({
+        where: { id: 1 }
+      });
+
+      const globalIgnorePatterns = settings?.globalIgnorePatterns || [];
+      const workspaceIgnorePatterns = workspace.ignorePatterns || [];
+      const allIgnorePatterns = [...globalIgnorePatterns, ...workspaceIgnorePatterns];
+
+      // Update workspace
+      await prisma.workspace.update({
+        where: { id: workspaceId },
+        data: {
+          lastFinalRequest: finalRequest,
+          selectedFiles: selectedFilePaths
+        }
+      });
+
+      fastify.appLogger.business({
+        action: 'Composition Prompt Generation Started',
+        details: `for workspace "${workspace.name}" using composition "${composition.name}"`,
         resourceId: workspace.id
       });
       
       // Generate the prompt
       const prompt = await generatePrompt({
-        prisma, // Passer l'instance prisma
+        prisma,
         workspace,
-        format,
-        role,
+        orderedBlockIds,
         finalRequest,
         selectedFilePaths,
-        ignorePatterns: allIgnorePatterns,
-        includeProjectInfo,
-        includeStructure,
-        promptTemplateId, // Passer l'ID
+        ignorePatterns: allIgnorePatterns
       });
 
       fastify.appLogger.business({
-        action: 'Prompt Generated',
-        details: `successfully for workspace "${workspace.name}"`,
+        action: 'Composition Prompt Generated',
+        details: `successfully for workspace "${workspace.name}" using composition "${composition.name}"`,
         resourceId: workspace.id
       });
-      return { prompt };
+      
+      return { prompt, compositionName: composition.name };
     } catch (error) {
-      fastify.appLogger.error(`Failed to generate prompt for workspace ${request.body.workspaceId}: ${error}`);
-      return reply.status(500).send({ error: 'Failed to generate prompt' });
+      fastify.appLogger.error(`Failed to generate prompt from composition: ${error}`);
+      return reply.status(500).send({ error: 'Failed to generate prompt from composition' });
     }
   });
 };

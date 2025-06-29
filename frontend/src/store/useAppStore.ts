@@ -1,8 +1,35 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-// Importez vos services API
-import { workspaceApi, formatApi, roleApi, promptTemplateApi } from '../services/api';
-// Les types Workspace, Format, Role, FileNode sont déjà définis dans ce fichier, pas besoin de les importer.
+import { workspaceApi, blockApi, compositionApi } from '../services/api';
+
+// Nouveaux types pour l'architecture modulaire
+export interface PromptBlock {
+  id: string;
+  name: string;
+  content: string;
+  type: 'STATIC' | 'DYNAMIC_TASK' | 'PROJECT_STRUCTURE' | 'SELECTED_FILES_CONTENT' | 'PROJECT_INFO';
+  category?: string;
+  color?: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PromptCompositionBlock {
+  id: string;
+  compositionId: string;
+  blockId: string;
+  order: number;
+  block: PromptBlock;
+}
+
+export interface PromptComposition {
+  id: string;
+  name: string;
+  blocks: PromptCompositionBlock[];
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Workspace {
   id: string;
@@ -12,304 +39,397 @@ export interface Workspace {
   lastFinalRequest?: string | null;
   ignorePatterns: string[];
   projectInfo?: string | null;
-  defaultFormatId?: string | null;
-  defaultRoleId?: string | null;
-  defaultPromptTemplateId?: string | null;
-  defaultFormat?: Format | null;
-  defaultRole?: Role | null;
-  defaultPromptTemplate?: PromptTemplate | null;
+  defaultCompositionId?: string | null;
+  defaultComposition?: PromptComposition | null;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface Format {
-  id: string;
-  name: string;
-  instructions: string;
-  examples: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Role {
-  id: string;
-  name: string;
-  description: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PromptTemplate {
-  id: string;
-  name: string;
-  content: string;
-  isDefault: boolean;
-  createdAt: string;
-  updatedAt: string;
-  role_intro?: string;
-  task_header?: string;
-  task_static_intro?: string;
-  task_format_reminder?: string;
-  format_header?: string;
-  project_info_header?: string;
-  structure_header?: string;
-  code_content_header?: string;
-  file_separator?: string;
 }
 
 export interface FileNode {
   name: string;
-  path: string;
   type: 'file' | 'directory';
+  path: string;
   children?: FileNode[];
 }
 
-export interface AppState {
-  // Current workspace
-  activeWorkspaceId: string | null;
-  activeWorkspace: Workspace | null;
-  
-  // File structure
+interface AppState {
+  // État des workspaces
+  workspaces: Workspace[];
+  selectedWorkspace: Workspace | null;
+  currentWorkspace: Workspace | null; // Alias pour compatibilité
   fileStructure: FileNode[];
-  selectedFiles: string[];
   
-  // Prompt generation
+  // État des blocs et compositions
+  blocks: PromptBlock[];
+  compositions: PromptComposition[];
+  currentComposition: PromptBlock[]; // Composition en cours de création
+  
+  // État de l'interface
+  selectedFiles: string[];
   finalRequest: string;
-  selectedFormatId: string | null;
-  selectedRoleId: string | null;
-  selectedPromptTemplateId: string | null;
   generatedPrompt: string;
   includeProjectInfo: boolean;
   includeStructure: boolean;
-  
-  // Data
-  workspaces: Workspace[];
-  formats: Format[];
-  roles: Role[];
-  promptTemplates: PromptTemplate[];
-  
-  // UI state
   isLoading: boolean;
   error: string | null;
   
-  // Actions
-  setActiveWorkspace: (workspace: Workspace | null) => void;
+  // Actions pour les workspaces
+  fetchWorkspaces: () => Promise<void>;
+  loadWorkspaces: () => Promise<void>; // Alias pour compatibilité
+  setSelectedWorkspace: (workspace: Workspace | null) => void;
+  setCurrentWorkspace: (workspace: Workspace | null) => void; // Alias pour compatibilité
+  createWorkspace: (data: { name: string; path: string; defaultCompositionId?: string; ignorePatterns?: string[]; projectInfo?: string }) => Promise<void>;
+  updateWorkspace: (id: string, data: Partial<Workspace>) => Promise<void>;
+  deleteWorkspace: (id: string) => Promise<void>;
+  loadFileStructure: (workspaceId: string) => Promise<void>;
   setFileStructure: (structure: FileNode[]) => void;
+  
+  // Actions pour les blocs
+  loadBlocks: () => Promise<void>;
+  createBlock: (data: { name: string; content: string; type: PromptBlock['type']; category?: string; color?: string }) => Promise<void>;
+  updateBlock: (id: string, data: Partial<PromptBlock>) => Promise<void>;
+  deleteBlock: (id: string) => Promise<void>;
+  
+  // Actions pour les compositions
+  loadCompositions: () => Promise<void>;
+  createComposition: (data: { name: string; blockIds: string[] }) => Promise<void>;
+  updateComposition: (id: string, data: { name?: string; blockIds?: string[] }) => Promise<void>;
+  deleteComposition: (id: string) => Promise<void>;
+  
+  // Actions pour la composition en cours
+  addBlockToCurrentComposition: (block: PromptBlock) => void;
+  removeBlockFromCurrentComposition: (index: number) => void;
+  reorderCurrentComposition: (fromIndex: number, toIndex: number) => void;
+  clearCurrentComposition: () => void;
+  loadCompositionIntoCurrentComposition: (compositionId: string) => void;
+  
+  // Actions pour la génération de prompt
   setSelectedFiles: (files: string[]) => void;
   setFinalRequest: (request: string) => void;
-  setSelectedFormat: (formatId: string | null) => void;
-  setSelectedRole: (roleId: string | null) => void;
-  setSelectedPromptTemplate: (templateId: string | null) => void;
-  setGeneratedPrompt: (prompt: string) => void;
-  setIncludeProjectInfo: (value: boolean) => void;
-  setIncludeStructure: (value: boolean) => void;
-  setWorkspaces: (workspaces: Workspace[]) => void;
-  setFormats: (formats: Format[]) => void;
-  setRoles: (roles: Role[]) => void;
-  setPromptTemplates: (templates: PromptTemplate[]) => void;
+  setIncludeProjectInfo: (include: boolean) => void;
+  setIncludeStructure: (include: boolean) => void;
+  generatePrompt: (data?: any) => Promise<any>;
+  generatePromptFromComposition: (compositionId: string) => Promise<void>;
+  
+  // Actions utilitaires
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  
-  // API Actions
-  fetchWorkspaces: () => Promise<void>;
-  fetchFormats: () => Promise<void>;
-  fetchRoles: () => Promise<void>;
-  fetchPromptTemplates: () => Promise<void>;
-  
-  // Computed
-  getSelectedFormat: () => Format | null;
-  getSelectedRole: () => Role | null;
-  getSelectedPromptTemplate: () => PromptTemplate | null;
-  
-  // Aliases for compatibility
-  selectedWorkspace: Workspace | null;
-  selectedFormat: Format | null;
-  selectedRole: Role | null;
-  selectedPromptTemplate: PromptTemplate | null;
-  setSelectedWorkspace: (workspace: Workspace | null) => void;
+  clearError: () => void;
 }
 
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      // Initial state
-      activeWorkspaceId: null,
-      activeWorkspace: null,
+      // État initial
+      workspaces: [],
+      selectedWorkspace: null,
+      currentWorkspace: null,
       fileStructure: [],
+      blocks: [],
+      compositions: [],
+      currentComposition: [],
       selectedFiles: [],
       finalRequest: '',
-      selectedFormatId: null,
-      selectedRoleId: null,
-      selectedPromptTemplateId: null,
       generatedPrompt: '',
-      includeProjectInfo: true,
-      includeStructure: true,
-      workspaces: [],
-      formats: [],
-      roles: [],
-      promptTemplates: [],
+      includeProjectInfo: false,
+      includeStructure: false,
       isLoading: false,
       error: null,
-      
-      // Actions
-      setActiveWorkspace: (workspace) => {
-        set({
-          activeWorkspace: workspace,
-          activeWorkspaceId: workspace?.id || null,
-          selectedFiles: workspace?.selectedFiles || [],
-          finalRequest: workspace?.lastFinalRequest || '',
-          selectedFormatId: workspace?.defaultFormatId || null,
-          selectedRoleId: workspace?.defaultRoleId || null,
-          selectedPromptTemplateId: workspace?.defaultPromptTemplateId || null,
-          selectedWorkspace: workspace
-        });
-      },
-      
-      setFileStructure: (structure) => set({ fileStructure: structure }),
-      
-      setSelectedFiles: (files) => set({ selectedFiles: files }),
-      
-      setFinalRequest: (request) => set({ finalRequest: request }),
-      
-      setSelectedFormat: (formatId) => {
-        const { formats } = get();
-        const format = formats.find(f => f.id === formatId) || null;
-        set({ selectedFormatId: formatId, selectedFormat: format });
-      },
-      
-      setSelectedRole: (roleId) => {
-        const { roles } = get();
-        const role = roles.find(r => r.id === roleId) || null;
-        set({ selectedRoleId: roleId, selectedRole: role });
-      },
-      
-      setSelectedPromptTemplate: (templateId) => {
-        const { promptTemplates } = get();
-        const template = promptTemplates.find(t => t.id === templateId) || null;
-        set({ selectedPromptTemplateId: templateId, selectedPromptTemplate: template });
-      },
-      
-      setGeneratedPrompt: (prompt) => set({ generatedPrompt: prompt }),
 
-      setIncludeProjectInfo: (value) => set({ includeProjectInfo: value }),
-      setIncludeStructure: (value) => set({ includeStructure: value }),
-      
-      setWorkspaces: (workspaces) => set({ workspaces }),
-      
-      setFormats: (formats) => {
-        const { selectedFormatId } = get();
-        const selectedFormat = formats.find(f => f.id === selectedFormatId) || null;
-        set({ formats, selectedFormat });
-      },
-      
-      setRoles: (roles) => {
-        const { selectedRoleId } = get();
-        const selectedRole = roles.find(r => r.id === selectedRoleId) || null;
-        set({ roles, selectedRole });
-      },
-      
-      setPromptTemplates: (templates) => {
-        const { selectedPromptTemplateId } = get();
-        const selectedPromptTemplate = templates.find(t => t.id === selectedPromptTemplateId) || null;
-        set({ promptTemplates: templates, selectedPromptTemplate });
-      },
-      
-      setLoading: (loading) => set({ isLoading: loading }),
-      
-      setError: (error) => set({ error }),
-      
-      // Computed
-      getSelectedFormat: () => {
-        const { formats, selectedFormatId } = get();
-        return formats.find(f => f.id === selectedFormatId) || null;
-      },
-      
-      getSelectedRole: () => {
-        const { roles, selectedRoleId } = get();
-        return roles.find(r => r.id === selectedRoleId) || null;
-      },
-      
-      getSelectedPromptTemplate: () => {
-        const { promptTemplates, selectedPromptTemplateId } = get();
-        return promptTemplates.find(t => t.id === selectedPromptTemplateId) || null;
-      },
-      
-      // API Actions
+      // Actions pour les workspaces
       fetchWorkspaces: async () => {
-        set({ isLoading: true, error: null });
         try {
-          // Utilisez le service API
+          set({ isLoading: true, error: null });
           const workspaces = await workspaceApi.getAll();
           set({ workspaces, isLoading: false });
         } catch (error) {
-          console.error('Failed to fetch workspaces:', error);
-          set({ error: 'Failed to fetch workspaces', isLoading: false });
+          set({ error: error instanceof Error ? error.message : 'Failed to load workspaces', isLoading: false });
         }
       },
-      
-      fetchFormats: async () => {
-        try {
-          // Utilisez le service API
-          const formats = await formatApi.getAll();
-          set({ formats });
-        } catch (error) {
-          // Affichez l'erreur pour un meilleur débogage
-          console.error('Failed to fetch formats:', error);
-        }
+
+      loadWorkspaces: async () => {
+        return get().fetchWorkspaces();
       },
-      
-      fetchRoles: async () => {
-        try {
-          // Utilisez le service API
-          const roles = await roleApi.getAll();
-          set({ roles });
-        } catch (error) {
-           // Affichez l'erreur pour un meilleur débogage
-          console.error('Failed to fetch roles:', error);
-        }
-      },
-      
-      fetchPromptTemplates: async () => {
-        try {
-          // Utilisez le service API
-          const templates = await promptTemplateApi.getAll();
-          set({ promptTemplates: templates });
-        } catch (error) {
-          // Affichez l'erreur pour un meilleur débogage
-          console.error('Failed to fetch prompt templates:', error);
-        }
-      },
-      
-      // Computed aliases for compatibility
-      selectedWorkspace: null as Workspace | null,
-      selectedFormat: null as Format | null,
-      selectedRole: null as Role | null,
-      selectedPromptTemplate: null as PromptTemplate | null,
-      
+
       setSelectedWorkspace: (workspace) => {
         set({
-          activeWorkspace: workspace,
-          activeWorkspaceId: workspace?.id || null,
+          selectedWorkspace: workspace,
+          currentWorkspace: workspace,
           selectedFiles: workspace?.selectedFiles || [],
-          finalRequest: workspace?.lastFinalRequest || '',
-          selectedFormatId: workspace?.defaultFormatId || null,
-          selectedRoleId: workspace?.defaultRoleId || null,
-          selectedPromptTemplateId: workspace?.defaultPromptTemplateId || null,
-          selectedWorkspace: workspace
+          finalRequest: workspace?.lastFinalRequest || ''
         });
       },
+
+      setCurrentWorkspace: (workspace) => {
+        return get().setSelectedWorkspace(workspace);
+      },
+
+      setFileStructure: (structure) => {
+        set({ fileStructure: structure });
+      },
+
+      createWorkspace: async (data) => {
+        try {
+          set({ isLoading: true, error: null });
+          const newWorkspace = await workspaceApi.create(data);
+          const workspaces = [...get().workspaces, newWorkspace];
+          set({ workspaces, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to create workspace', isLoading: false });
+        }
+      },
+
+      updateWorkspace: async (id, data) => {
+        try {
+          set({ isLoading: true, error: null });
+          const updatedWorkspace = await workspaceApi.update(id, data as any);
+          const workspaces = get().workspaces.map(w => w.id === id ? updatedWorkspace : w);
+          const currentWorkspace = get().currentWorkspace?.id === id ? updatedWorkspace : get().currentWorkspace;
+          set({ workspaces, currentWorkspace, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to update workspace', isLoading: false });
+        }
+      },
+
+      deleteWorkspace: async (id) => {
+        try {
+          set({ isLoading: true, error: null });
+          await workspaceApi.delete(id);
+          const workspaces = get().workspaces.filter(w => w.id !== id);
+          const currentWorkspace = get().currentWorkspace?.id === id ? null : get().currentWorkspace;
+          set({ workspaces, currentWorkspace, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to delete workspace', isLoading: false });
+        }
+      },
+
+      loadFileStructure: async (workspaceId) => {
+        try {
+          set({ isLoading: true, error: null });
+          const fileStructure = await workspaceApi.getStructure(workspaceId);
+          set({ fileStructure, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to load file structure', isLoading: false });
+        }
+      },
+
+      // Actions pour les blocs
+      loadBlocks: async () => {
+        try {
+          set({ isLoading: true, error: null });
+          const blocks = await blockApi.getAll();
+          set({ blocks, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to load blocks', isLoading: false });
+        }
+      },
+
+      createBlock: async (data) => {
+        try {
+          set({ isLoading: true, error: null });
+          const newBlock = await blockApi.create(data);
+          const blocks = [...get().blocks, newBlock];
+          set({ blocks, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to create block', isLoading: false });
+        }
+      },
+
+      updateBlock: async (id, data) => {
+        try {
+          set({ isLoading: true, error: null });
+          const updatedBlock = await blockApi.update(id, data);
+          const blocks = get().blocks.map(b => b.id === id ? updatedBlock : b);
+          set({ blocks, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to update block', isLoading: false });
+        }
+      },
+
+      deleteBlock: async (id) => {
+        try {
+          set({ isLoading: true, error: null });
+          await blockApi.delete(id);
+          const blocks = get().blocks.filter(b => b.id !== id);
+          set({ blocks, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to delete block', isLoading: false });
+        }
+      },
+
+      // Actions pour les compositions
+      loadCompositions: async () => {
+        try {
+          set({ isLoading: true, error: null });
+          const compositions = await compositionApi.getAll();
+          set({ compositions, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to load compositions', isLoading: false });
+        }
+      },
+
+      createComposition: async (data) => {
+        try {
+          set({ isLoading: true, error: null });
+          const newComposition = await compositionApi.create(data);
+          const compositions = [...get().compositions, newComposition];
+          set({ compositions, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to create composition', isLoading: false });
+        }
+      },
+
+      updateComposition: async (id, data) => {
+        try {
+          set({ isLoading: true, error: null });
+          const updatedComposition = await compositionApi.update(id, data);
+          const compositions = get().compositions.map(c => c.id === id ? updatedComposition : c);
+          set({ compositions, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to update composition', isLoading: false });
+        }
+      },
+
+      deleteComposition: async (id) => {
+        try {
+          set({ isLoading: true, error: null });
+          await compositionApi.delete(id);
+          const compositions = get().compositions.filter(c => c.id !== id);
+          set({ compositions, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to delete composition', isLoading: false });
+        }
+      },
+
+      // Actions pour la composition en cours
+      addBlockToCurrentComposition: (block) => {
+        const currentComposition = [...get().currentComposition, block];
+        set({ currentComposition });
+      },
+
+      removeBlockFromCurrentComposition: (index) => {
+        const currentComposition = get().currentComposition.filter((_, i) => i !== index);
+        set({ currentComposition });
+      },
+
+      reorderCurrentComposition: (fromIndex, toIndex) => {
+        const currentComposition = [...get().currentComposition];
+        const [removed] = currentComposition.splice(fromIndex, 1);
+        currentComposition.splice(toIndex, 0, removed);
+        set({ currentComposition });
+      },
+
+      clearCurrentComposition: () => {
+        set({ currentComposition: [] });
+      },
+
+      loadCompositionIntoCurrentComposition: (compositionId) => {
+        const composition = get().compositions.find(c => c.id === compositionId);
+        if (composition) {
+          const currentComposition = composition.blocks
+            .sort((a, b) => a.order - b.order)
+            .map(cb => cb.block);
+          set({ currentComposition });
+        }
+      },
+
+      // Actions pour la génération de prompt
+      setSelectedFiles: (files) => {
+        set({ selectedFiles: files });
+      },
+
+      setFinalRequest: (request) => {
+        set({ finalRequest: request });
+      },
+
+      setIncludeProjectInfo: (include) => {
+        set({ includeProjectInfo: include });
+      },
+
+      setIncludeStructure: (include) => {
+        set({ includeStructure: include });
+      },
+
+      generatePrompt: async (data?: any) => {
+        if (data) {
+          // Utilisation avec des données externes (nouvelle API)
+          try {
+            set({ isLoading: true, error: null });
+            
+            // 🪲 DEBUG: Log des données envoyées à l'API
+            console.log('🔍 DEBUG STORE - Données envoyées à promptApi.generate:', data);
+            
+            const result = await promptApi.generate(data);
+            set({ generatedPrompt: result.prompt, isLoading: false });
+            return result;
+          } catch (error) {
+            console.log('🚨 DEBUG STORE - Erreur dans generatePrompt:', error);
+            set({ error: error instanceof Error ? error.message : 'Failed to generate prompt', isLoading: false });
+            throw error;
+          }
+        } else {
+          // Utilisation avec l'état interne (ancienne API)
+          const { currentWorkspace, currentComposition, finalRequest, selectedFiles } = get();
+          if (!currentWorkspace || currentComposition.length === 0) {
+            set({ error: 'Workspace and composition are required' });
+            return;
+          }
+
+          try {
+            set({ isLoading: true, error: null });
+            const orderedBlockIds = currentComposition.map(block => block.id);
+            const result = await promptApi.generate({
+              workspaceId: currentWorkspace.id,
+              orderedBlockIds,
+              finalRequest,
+              selectedFilePaths: selectedFiles,
+            });
+            set({ generatedPrompt: result.prompt, isLoading: false });
+            return result;
+          } catch (error) {
+            set({ error: error instanceof Error ? error.message : 'Failed to generate prompt', isLoading: false });
+            throw error;
+          }
+        }
+      },
+
+      generatePromptFromComposition: async (compositionId) => {
+        const { currentWorkspace, finalRequest, selectedFiles } = get();
+        if (!currentWorkspace) {
+          set({ error: 'Workspace is required' });
+          return;
+        }
+
+        try {
+          set({ isLoading: true, error: null });
+          const result = await promptApi.generateFromComposition({
+            workspaceId: currentWorkspace.id,
+            compositionId,
+            finalRequest,
+            selectedFilePaths: selectedFiles,
+          });
+          set({ generatedPrompt: result.prompt, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to generate prompt from composition', isLoading: false });
+        }
+      },
+
+      // Actions utilitaires
+      setLoading: (loading) => set({ isLoading: loading }),
+      setError: (error) => set({ error }),
+      clearError: () => set({ error: null }),
     }),
     {
-      name: 'ai-prompt-tool-storage',
+      name: 'app-store',
       partialize: (state) => ({
-        activeWorkspaceId: state.activeWorkspaceId,
+        currentWorkspace: state.currentWorkspace,
+        selectedFiles: state.selectedFiles,
         finalRequest: state.finalRequest,
-        selectedFormatId: state.selectedFormatId,
-        selectedRoleId: state.selectedRoleId,
-        selectedPromptTemplateId: state.selectedPromptTemplateId,
-        includeProjectInfo: state.includeProjectInfo,
-        includeStructure: state.includeStructure,
+        currentComposition: state.currentComposition,
       }),
     }
   )
 );
+
+// Import du promptApi pour éviter les dépendances circulaires
+import { promptApi } from '../services/api';

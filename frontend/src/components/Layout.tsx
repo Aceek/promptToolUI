@@ -13,8 +13,8 @@ const Layout = () => {
       {/* Sidebar */}
       <div className="sidebar">
         <div className="p-6 border-b border-gray-200">
-          <h1 className="text-xl font-bold text-gray-900">AI Prompt Tool</h1>
-          <p className="text-sm text-gray-500">v2.0</p>
+          <h1 className="text-xl font-bold text-gray-900">PromptTool UI</h1>
+          <p className="text-sm text-gray-500">v2.0 - Architecture Modulaire</p>
         </div>
         
         <nav className="sidebar-nav">
@@ -22,8 +22,8 @@ const Layout = () => {
             to="/"
             className={`sidebar-nav-item ${isActive('/') ? 'active' : ''}`}
           >
-            <span>🏠</span>
-            <span>Accueil</span>
+            <span>🧩</span>
+            <span>Générateur Modulaire</span>
           </Link>
           
           <div className="px-3 pt-4 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -39,27 +39,19 @@ const Layout = () => {
           </Link>
           
           <Link
-            to="/settings/formats"
-            className={`sidebar-nav-item ${isActive('/settings/formats') ? 'active' : ''}`}
+            to="/settings/blocks"
+            className={`sidebar-nav-item ${isActive('/settings/blocks') ? 'active' : ''}`}
           >
-            <span>📝</span>
-            <span>Formats</span>
+            <span>🧱</span>
+            <span>Blocs de Prompt</span>
           </Link>
           
           <Link
-            to="/settings/roles"
-            className={`sidebar-nav-item ${isActive('/settings/roles') ? 'active' : ''}`}
+            to="/settings/compositions"
+            className={`sidebar-nav-item ${isActive('/settings/compositions') ? 'active' : ''}`}
           >
-            <span>🎭</span>
-            <span>Rôles</span>
-          </Link>
-          
-          <Link
-            to="/settings/prompt-templates"
-            className={`sidebar-nav-item ${isActive('/settings/prompt-templates') ? 'active' : ''}`}
-          >
-            <span>📄</span>
-            <span>Templates de Prompt</span>
+            <span>🎼</span>
+            <span>Compositions</span>
           </Link>
           
           <Link

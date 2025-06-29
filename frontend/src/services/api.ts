@@ -1,4 +1,4 @@
-import { Workspace, Format, Role, FileNode } from '../store/useAppStore';
+import { Workspace, PromptBlock, PromptComposition, FileNode } from '../store/useAppStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -45,9 +45,7 @@ export const workspaceApi = {
   create: (data: {
     name: string;
     path: string;
-    defaultFormatId?: string;
-    defaultRoleId?: string;
-    defaultPromptTemplateId?: string;
+    defaultCompositionId?: string;
     ignorePatterns?: string[];
     projectInfo?: string;
   }): Promise<Workspace> =>
@@ -61,9 +59,7 @@ export const workspaceApi = {
     path?: string;
     selectedFiles?: string[];
     lastFinalRequest?: string;
-    defaultFormatId?: string | null;
-    defaultRoleId?: string | null;
-    defaultPromptTemplateId?: string | null;
+    defaultCompositionId?: string | null;
     ignorePatterns?: string[];
     projectInfo?: string;
   }): Promise<Workspace> =>
@@ -81,68 +77,75 @@ export const workspaceApi = {
     fetchApi(`/api/prompt/workspaces/${id}/structure`),
 };
 
-// Format API
-export const formatApi = {
-  getAll: (): Promise<Format[]> => 
-    fetchApi('/api/formats'),
+// PromptBlock API
+export const blockApi = {
+  getAll: (): Promise<PromptBlock[]> => 
+    fetchApi('/api/blocks'),
 
-  getById: (id: string): Promise<Format> => 
-    fetchApi(`/api/formats/${id}`),
+  getById: (id: string): Promise<PromptBlock> => 
+    fetchApi(`/api/blocks/${id}`),
 
   create: (data: {
     name: string;
-    instructions: string;
-    examples: string;
-  }): Promise<Format> =>
-    fetchApi('/api/formats', {
+    content: string;
+    type: 'STATIC' | 'DYNAMIC_TASK' | 'PROJECT_STRUCTURE' | 'SELECTED_FILES_CONTENT' | 'PROJECT_INFO';
+    category?: string;
+    color?: string;
+  }): Promise<PromptBlock> =>
+    fetchApi('/api/blocks', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   update: (id: string, data: {
     name?: string;
-    instructions?: string;
-    examples?: string;
-  }): Promise<Format> =>
-    fetchApi(`/api/formats/${id}`, {
+    content?: string;
+    type?: 'STATIC' | 'DYNAMIC_TASK' | 'PROJECT_STRUCTURE' | 'SELECTED_FILES_CONTENT' | 'PROJECT_INFO';
+    category?: string;
+    color?: string;
+  }): Promise<PromptBlock> =>
+    fetchApi(`/api/blocks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   delete: (id: string): Promise<void> =>
-    fetchApi(`/api/formats/${id}`, {
+    fetchApi(`/api/blocks/${id}`, {
       method: 'DELETE',
     }),
+
+  getCategories: (): Promise<string[]> =>
+    fetchApi('/api/blocks/categories'),
 };
 
-// Role API
-export const roleApi = {
-  getAll: (): Promise<Role[]> => 
-    fetchApi('/api/roles'),
+// PromptComposition API
+export const compositionApi = {
+  getAll: (): Promise<PromptComposition[]> => 
+    fetchApi('/api/compositions'),
 
-  getById: (id: string): Promise<Role> => 
-    fetchApi(`/api/roles/${id}`),
+  getById: (id: string): Promise<PromptComposition> => 
+    fetchApi(`/api/compositions/${id}`),
 
   create: (data: {
     name: string;
-    description: string;
-  }): Promise<Role> =>
-    fetchApi('/api/roles', {
+    blockIds: string[];
+  }): Promise<PromptComposition> =>
+    fetchApi('/api/compositions', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   update: (id: string, data: {
     name?: string;
-    description?: string;
-  }): Promise<Role> =>
-    fetchApi(`/api/roles/${id}`, {
+    blockIds?: string[];
+  }): Promise<PromptComposition> =>
+    fetchApi(`/api/compositions/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   delete: (id: string): Promise<void> =>
-    fetchApi(`/api/roles/${id}`, {
+    fetchApi(`/api/compositions/${id}`, {
       method: 'DELETE',
     }),
 };
@@ -161,69 +164,30 @@ export const settingsApi = {
     }),
 };
 
-// Prompt API
+// Prompt API - Nouvelle version modulaire
 export const promptApi = {
+  // Génération modulaire avec liste de blocs
   generate: (data: {
     workspaceId: string;
+    orderedBlockIds: string[];
     finalRequest?: string;
     selectedFilePaths?: string[];
-    formatId?: string;
-    roleId?: string;
-    includeProjectInfo: boolean;
-    includeStructure: boolean;
-    promptTemplateId?: string;
   }): Promise<{ prompt: string }> =>
     fetchApi('/api/prompt/generate', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-};
 
-// Prompt Template API
-export const promptTemplateApi = {
-  getAll: (): Promise<any[]> => 
-    fetchApi('/api/prompt-templates'),
-
-  getById: (id: string): Promise<any> => 
-    fetchApi(`/api/prompt-templates/${id}`),
-
-  create: (data: {
-    name: string;
-    role_intro?: string;
-    task_header?: string;
-    task_static_intro?: string;
-    task_format_reminder?: string;
-    format_header?: string;
-    project_info_header?: string;
-    structure_header?: string;
-    code_content_header?: string;
-    file_separator?: string;
-  }): Promise<any> =>
-    fetchApi('/api/prompt-templates', {
+  // Génération depuis une composition sauvegardée
+  generateFromComposition: (data: {
+    workspaceId: string;
+    compositionId: string;
+    finalRequest?: string;
+    selectedFilePaths?: string[];
+  }): Promise<{ prompt: string; compositionName: string }> =>
+    fetchApi('/api/prompt/generate-from-composition', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
-
-  update: (id: string, data: {
-    name?: string;
-    role_intro?: string;
-    task_header?: string;
-    task_static_intro?: string;
-    task_format_reminder?: string;
-    format_header?: string;
-    project_info_header?: string;
-    structure_header?: string;
-    code_content_header?: string;
-    file_separator?: string;
-  }): Promise<any> =>
-    fetchApi(`/api/prompt-templates/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  delete: (id: string): Promise<void> =>
-    fetchApi(`/api/prompt-templates/${id}`, {
-      method: 'DELETE',
     }),
 };
 

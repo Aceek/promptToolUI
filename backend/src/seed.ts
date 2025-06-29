@@ -1,308 +1,229 @@
-import { PrismaClient } from '@prisma/client';
-import fs from 'fs/promises';
-import path from 'path';
+import { PrismaClient, PromptBlockType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding database...');
+  console.log('🌱 Seeding database with default prompt blocks and compositions...');
 
-  // Create default settings
-  await prisma.setting.upsert({
-    where: { id: 1 },
-    update: {},
-    create: {
-      id: 1,
-      globalIgnorePatterns: [
-        '*.log',
-        '*.logs',
-        '*.jpg',
-        '*.jpeg',
-        '*.png',
-        '*.gif',
-        '*.svg',
-        '*.ico',
-        '*.bmp',
-        '*.tiff',
-        '*.webp',
-        '*.mp3',
-        '*.wav',
-        '*.mp4',
-        '*.avi',
-        '*.mov',
-        '*.zip',
-        '*.tar',
-        '*.gz',
-        '*.7z',
-        '*.rar',
-        '*.pdf',
-        '*.doc',
-        '*.docx',
-        '*.xls',
-        '*.xlsx',
-        '*.ppt',
-        '*.pptx',
-        '*.exe',
-        '*.dll',
-        '*.so',
-        '*.o',
-        '*.a',
-        '*.class',
-        '*.jar',
-        '*.war',
-        '*.ear',
-        '*.pyc',
-        '*.pyo',
-        '*.pyd',
-        '*.db',
-        '*.sqlite',
-        '*.sqlite3',
-        '*.db3',
-        '*.sql',
-        '*.bak',
-        '*.tmp',
-        '*.temp',
-        '*.swp',
-        '*.swo',
-        '*.DS_Store',
-        '*.idea',
-        '*.vscode',
-        '*.git',
-        '*.svn',
-        '*.hg',
-        '*.bzr',
-        '*.env',
-        '*.env.*',
-        '*.csv',
-        'data',
-        '.git',
-        '.github',
-        '.vscode',
-        '.idea',
-        '.husky',
-        'venv',
-        'node_modules',
-        'dist',
-        'build',
-        'coverage',
-        '.cache',
-        'out/',
-        'yarn.lock',
-        'package-lock.json',
-        'translations/*.json',
-        'translations/'
-      ]
-    }
-  });
+  // Supprimer toutes les données existantes
+  await prisma.promptCompositionBlocks.deleteMany();
+  await prisma.promptComposition.deleteMany();
+  await prisma.promptBlock.deleteMany();
 
-  // Create default formats based on the old project
-  const markdownFormat = await prisma.format.upsert({
-    where: { name: 'markdown' },
-    update: {},
-    create: {
-      name: 'markdown',
-      instructions: `Use Markdown syntax.
-Include code blocks with \`\`\`language for code samples.`,
-      examples: `# User Profile Feature Implementation
-
-## Overview
-Implementation of a new user profile system with avatar support and form validation.
-
-### Key Changes
-- Added new UserProfile component
-- Enhanced form validation
-- Updated styling for profile page
-
-## Component Implementation
-
-### UserProfile Component
-New React component for managing user profiles:
-
-\`\`\`javascript
-class UserProfile extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      name: props.name || '',
-      email: props.email || '',
-      avatar: props.avatar || 'default.png'
-    };
-  }
-
-  handleSubmit(event) {
-    event.preventDefault();
-    if (this.validateForm()) {
-      this.props.onUpdate(this.state);
-    }
-  }
-}
-\`\`\`
-
-> **Note:** Remember to run \`npm install\` after pulling these changes.`
-    }
-  });
-
-  const structuredFormat = await prisma.format.upsert({
-    where: { name: 'structured' },
-    update: {},
-    create: {
-      name: 'structured',
-      instructions: `Structure your response with clear section headers using === separators.
-Use markdown-style formatting for code and lists.
-Keep sections organized and clearly separated.`,
-      examples: `====================================
-IMPLEMENTATION SUMMARY
-====================================
-User profile feature implementation with avatar support and form validation.
-
-Key Deliverables:
-- New UserProfile React component
-- Enhanced form validation utilities
-- Updated profile page styling
-- Comprehensive test coverage
-
-====================================
-COMPONENT CHANGES
-====================================
-UserProfile Component
---------------------
-Location: src/components/UserProfile.js
-Type: New Component
-Purpose: Manage user profile data and form handling
-
-\`\`\`javascript
-class UserProfile extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      name: props.name || '',
-      email: props.email || '',
-      avatar: props.avatar || 'default.png'
-    };
-  }
-
-  handleSubmit(event) {
-    event.preventDefault();
-    if (this.validateForm()) {
-      this.props.onUpdate(this.state);
-    }
-  }
-}
-\`\`\`
-
-====================================
-DEPLOYMENT NOTES
-====================================
-Required Actions:
-1. Run npm install
-2. Update environment variables
-3. Clear browser cache after deployment
-
-Known Issues:
-- None reported`
-    }
-  });
-
-  const jsonFormat = await prisma.format.upsert({
-    where: { name: 'json' },
-    update: {},
-    create: {
-      name: 'json',
-      instructions: `Respond with valid JSON only.
-Structure your response as a JSON object with appropriate fields.
-Do not include any text outside the JSON structure.`,
-      examples: `{
-  "summary": "User profile feature implementation",
-  "changes": [
-    {
-      "type": "component",
-      "name": "UserProfile",
-      "location": "src/components/UserProfile.js",
-      "status": "new"
-    }
-  ],
-  "dependencies": {
-    "added": ["@testing-library/react", "validator"],
-    "removed": ["old-validation-lib"]
-  },
-  "testing": {
-    "coverage": {
-      "UserProfile": "85%",
-      "Validation": "100%"
-    }
-  }
-}`
-    }
-  });
-
-  // Create default roles
-  const expertRole = await prisma.role.upsert({
-    where: { name: 'Expert Software Engineer' },
-    update: {},
-    create: {
-      name: 'Expert Software Engineer',
-      description: `You are an expert software engineer and technical consultant with extensive experience in code analysis, refactoring, and development across multiple programming languages and frameworks. You excel at understanding complex codebases and providing detailed, actionable solutions.
-
-Key Areas of Expertise:
-- Code analysis and understanding
-- Software architecture and design patterns
-- Best practices and coding standards
-- Performance optimization
-- Technical documentation
-
-Approach:
-1. Break down problems into clear components
-2. Explain reasoning for decisions
-3. Consider implications and trade-offs
-4. Validate solutions against requirements
-5. Provide clear, actionable steps`
-    }
-  });
-
-  const architectRole = await prisma.role.upsert({
-    where: { name: 'Software Architect' },
-    update: {},
-    create: {
-      name: 'Software Architect',
-      description: `You are a senior software architect with deep expertise in system design, scalability, and technical leadership. You focus on high-level design decisions, technology choices, and architectural patterns that ensure long-term maintainability and scalability.
-
-Key Areas of Expertise:
-- System architecture and design
-- Scalability and performance
-- Technology selection and evaluation
-- Design patterns and best practices
-- Technical strategy and roadmapping
-
-Approach:
-1. Think strategically about system design
-2. Consider scalability and maintainability
-3. Evaluate trade-offs between different approaches
-4. Focus on long-term architectural health
-5. Provide clear architectural guidance`
-    }
-  });
-
-  // Seed default prompt template
-  console.log('Seeding default prompt template...');
-  // On vérifie s'il existe déjà pour ne pas écraser les modifications de l'utilisateur
-  const existingDefault = await prisma.promptTemplate.findFirst({ where: { isDefault: true } });
-  
-  if (!existingDefault) {
-    await prisma.promptTemplate.create({
+  // Créer les blocs de base
+  const blocks = await Promise.all([
+    // Blocs de rôles
+    prisma.promptBlock.create({
       data: {
-        name: 'Default System Prompt',
-        isDefault: true,
-        // Tous les autres champs utiliseront leur valeur @default définie dans le schéma
-      },
-    });
-    console.log('✅ Default prompt template created.');
-  } else {
-    console.log('ℹ️ Default prompt template already exists.');
-  }
+        name: 'Expert Software Engineer',
+        content: 'You are an expert software engineer with extensive knowledge in multiple programming languages, frameworks, and best practices. You write clean, efficient, and maintainable code.',
+        type: PromptBlockType.STATIC,
+        category: 'Rôles',
+        color: '#3B82F6'
+      }
+    }),
 
-  console.log('✅ Database seeded successfully!');
-  console.log(`Created formats: ${markdownFormat.name}, ${structuredFormat.name}, ${jsonFormat.name}`);
-  console.log(`Created roles: ${expertRole.name}, ${architectRole.name}`);
+    prisma.promptBlock.create({
+      data: {
+        name: 'Senior Frontend Developer',
+        content: 'You are a senior frontend developer specializing in React, TypeScript, and modern web technologies. You focus on creating responsive, accessible, and performant user interfaces.',
+        type: PromptBlockType.STATIC,
+        category: 'Rôles',
+        color: '#3B82F6'
+      }
+    }),
+
+    prisma.promptBlock.create({
+      data: {
+        name: 'Backend Architect',
+        content: 'You are a backend architect with deep expertise in API design, database optimization, and scalable system architecture. You prioritize security, performance, and maintainability.',
+        type: PromptBlockType.STATIC,
+        category: 'Rôles',
+        color: '#3B82F6'
+      }
+    }),
+
+    // Bloc de tâche dynamique
+    prisma.promptBlock.create({
+      data: {
+        name: 'Tâche Utilisateur',
+        content: 'TASK TO ACCOMPLISH:\n\n{{dynamic_task}}\n\nPlease analyze the provided code and project structure to accomplish this task effectively.',
+        type: PromptBlockType.DYNAMIC_TASK,
+        category: 'Tâche',
+        color: '#EF4444'
+      }
+    }),
+
+    // Blocs d'instructions de format
+    prisma.promptBlock.create({
+      data: {
+        name: 'Format Code avec Explications',
+        content: 'FORMAT INSTRUCTIONS:\n\n- Provide clear, well-commented code\n- Explain your reasoning for key decisions\n- Include error handling where appropriate\n- Follow best practices for the given language/framework\n- Structure your response with clear sections',
+        type: PromptBlockType.STATIC,
+        category: 'Formats',
+        color: '#10B981'
+      }
+    }),
+
+    prisma.promptBlock.create({
+      data: {
+        name: 'Format Documentation',
+        content: 'FORMAT INSTRUCTIONS:\n\n- Write comprehensive documentation\n- Include code examples where relevant\n- Use clear headings and structure\n- Explain complex concepts in simple terms\n- Provide usage examples and best practices',
+        type: PromptBlockType.STATIC,
+        category: 'Formats',
+        color: '#10B981'
+      }
+    }),
+
+    prisma.promptBlock.create({
+      data: {
+        name: 'Format Analyse et Recommandations',
+        content: 'FORMAT INSTRUCTIONS:\n\n- Analyze the current code structure\n- Identify potential issues or improvements\n- Provide specific, actionable recommendations\n- Prioritize suggestions by impact and effort\n- Include code examples for proposed changes',
+        type: PromptBlockType.STATIC,
+        category: 'Formats',
+        color: '#10B981'
+      }
+    }),
+
+    // Blocs dynamiques pour le contenu du projet
+    prisma.promptBlock.create({
+      data: {
+        name: 'Informations du Projet',
+        content: 'PROJECT INFORMATION:\n\nThe following information describes the current project context.',
+        type: PromptBlockType.PROJECT_INFO,
+        category: 'Contexte',
+        color: '#8B5CF6'
+      }
+    }),
+
+    prisma.promptBlock.create({
+      data: {
+        name: 'Structure du Projet',
+        content: 'PROJECT STRUCTURE:\n\nHere is the current file and directory structure of the project.',
+        type: PromptBlockType.PROJECT_STRUCTURE,
+        category: 'Contexte',
+        color: '#8B5CF6'
+      }
+    }),
+
+    prisma.promptBlock.create({
+      data: {
+        name: 'Fichiers Sélectionnés',
+        content: 'SELECTED FILES CONTENT:\n\nThe following files have been selected for analysis.',
+        type: PromptBlockType.SELECTED_FILES_CONTENT,
+        category: 'Contexte',
+        color: '#8B5CF6'
+      }
+    }),
+
+    // Blocs d'instructions générales
+    prisma.promptBlock.create({
+      data: {
+        name: 'Instructions Générales',
+        content: 'GENERAL INSTRUCTIONS:\n\n- Analyze the provided code carefully\n- Consider the project context and structure\n- Provide practical, implementable solutions\n- Maintain consistency with existing code style\n- Ask for clarification if requirements are unclear',
+        type: PromptBlockType.STATIC,
+        category: 'Instructions',
+        color: '#F59E0B'
+      }
+    }),
+
+    prisma.promptBlock.create({
+      data: {
+        name: 'Bonnes Pratiques',
+        content: 'BEST PRACTICES:\n\n- Follow SOLID principles\n- Write self-documenting code\n- Implement proper error handling\n- Consider performance implications\n- Ensure code is testable and maintainable\n- Use appropriate design patterns',
+        type: PromptBlockType.STATIC,
+        category: 'Instructions',
+        color: '#F59E0B'
+      }
+    })
+  ]);
+
+  console.log(`✅ Created ${blocks.length} prompt blocks`);
+
+  // Créer des compositions par défaut
+  const compositions = await Promise.all([
+    // Composition pour développement général
+    prisma.promptComposition.create({
+      data: {
+        name: 'Développement Général',
+        blocks: {
+          create: [
+            { blockId: blocks[0].id, order: 0 }, // Expert Software Engineer
+            { blockId: blocks[3].id, order: 1 }, // Tâche Utilisateur
+            { blockId: blocks[4].id, order: 2 }, // Format Code avec Explications
+            { blockId: blocks[7].id, order: 3 }, // Informations du Projet
+            { blockId: blocks[8].id, order: 4 }, // Structure du Projet
+            { blockId: blocks[9].id, order: 5 }, // Fichiers Sélectionnés
+            { blockId: blocks[10].id, order: 6 } // Instructions Générales
+          ]
+        }
+      }
+    }),
+
+    // Composition pour frontend
+    prisma.promptComposition.create({
+      data: {
+        name: 'Développement Frontend',
+        blocks: {
+          create: [
+            { blockId: blocks[1].id, order: 0 }, // Senior Frontend Developer
+            { blockId: blocks[3].id, order: 1 }, // Tâche Utilisateur
+            { blockId: blocks[4].id, order: 2 }, // Format Code avec Explications
+            { blockId: blocks[7].id, order: 3 }, // Informations du Projet
+            { blockId: blocks[9].id, order: 4 }, // Fichiers Sélectionnés
+            { blockId: blocks[11].id, order: 5 } // Bonnes Pratiques
+          ]
+        }
+      }
+    }),
+
+    // Composition pour analyse de code
+    prisma.promptComposition.create({
+      data: {
+        name: 'Analyse et Refactoring',
+        blocks: {
+          create: [
+            { blockId: blocks[0].id, order: 0 }, // Expert Software Engineer
+            { blockId: blocks[3].id, order: 1 }, // Tâche Utilisateur
+            { blockId: blocks[6].id, order: 2 }, // Format Analyse et Recommandations
+            { blockId: blocks[8].id, order: 3 }, // Structure du Projet
+            { blockId: blocks[9].id, order: 4 }, // Fichiers Sélectionnés
+            { blockId: blocks[11].id, order: 5 } // Bonnes Pratiques
+          ]
+        }
+      }
+    }),
+
+    // Composition pour documentation
+    prisma.promptComposition.create({
+      data: {
+        name: 'Génération de Documentation',
+        blocks: {
+          create: [
+            { blockId: blocks[0].id, order: 0 }, // Expert Software Engineer
+            { blockId: blocks[3].id, order: 1 }, // Tâche Utilisateur
+            { blockId: blocks[5].id, order: 2 }, // Format Documentation
+            { blockId: blocks[7].id, order: 3 }, // Informations du Projet
+            { blockId: blocks[8].id, order: 4 }, // Structure du Projet
+            { blockId: blocks[9].id, order: 5 }  // Fichiers Sélectionnés
+          ]
+        }
+      }
+    })
+  ]);
+
+  console.log(`✅ Created ${compositions.length} prompt compositions`);
+
+  console.log('🎉 Database seeded successfully!');
+  console.log('\nCreated blocks:');
+  blocks.forEach((block, index) => {
+    console.log(`  ${index + 1}. ${block.name} (${block.category}) - ${block.type}`);
+  });
+
+  console.log('\nCreated compositions:');
+  compositions.forEach((comp, index) => {
+    console.log(`  ${index + 1}. ${comp.name}`);
+  });
 }
 
 main()

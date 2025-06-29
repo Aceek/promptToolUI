@@ -11,97 +11,89 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// A Workspace represents a project directory the user is working on.
+// ---------------------------------
+// -- NOUVELLE ARCHITECTURE MODULAIRE --
+// ---------------------------------
+
+// L'unité de base, la brique "Lego".
+model PromptBlock {
+  id        String          @id @default(cuid())
+  name      String          // Nom du bloc pour l'UI (ex: "Rôle Expert React", "Tâche Dynamique")
+  content   String          @db.Text // Contenu du bloc, peut contenir des variables (ex: "{{dynamic_task}}")
+  
+  // Le type de bloc détermine si un traitement spécial est nécessaire au backend.
+  type      PromptBlockType @default(STATIC)
+  
+  // Pour l'organisation dans l'UI
+  category  String?         // Catégorie définie par l'utilisateur (ex: "Rôles", "Instructions")
+  color     String?         // Code couleur pour l'UI (ex: "#4299e1")
+
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  // Relation: Un bloc peut appartenir à plusieurs compositions
+  compositions PromptCompositionBlocks[]
+}
+
+// Enum pour les types de blocs spéciaux.
+enum PromptBlockType {
+  STATIC                   // Bloc de texte simple, copié/collé tel quel.
+  DYNAMIC_TASK             // Un bloc spécial qui injectera la "demande finale" de l'utilisateur.
+  PROJECT_STRUCTURE        // Un bloc qui déclenchera la génération de l'arborescence du projet.
+  SELECTED_FILES_CONTENT   // Un bloc qui injectera le contenu des fichiers sélectionnés.
+  PROJECT_INFO             // Un bloc qui injectera les informations du Workspace.
+  // On pourra en ajouter d'autres plus tard ! (ex: GIT_DIFF, etc.)
+}
+
+// Un assemblage de blocs sauvegardé par l'utilisateur.
+model PromptComposition {
+  id        String    @id @default(cuid())
+  name      String    @unique // Nom de l'assemblage (ex: "Prompt de Refactoring", "Générateur de Doc")
+  
+  // Relation via une table de jointure pour gérer l'ordre
+  blocks    PromptCompositionBlocks[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relation: peut être le template par défaut pour plusieurs workspaces
+  defaultForWorkspaces Workspace[]
+}
+
+// Table de jointure pour gérer l'ordre des blocs dans une composition
+model PromptCompositionBlocks {
+  id              String   @id @default(cuid())
+  composition     PromptComposition @relation(fields: [compositionId], references: [id], onDelete: Cascade)
+  compositionId   String
+  block           PromptBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  blockId         String
+  order           Int      // L'ordre du bloc dans cette composition spécifique
+
+  @@unique([compositionId, order])
+}
+
+
+// ---------------------
+// -- MODÈLES ADAPTÉS --
+// ---------------------
+
 model Workspace {
   id                String   @id @default(cuid())
   name              String
-  path              String   @unique // Absolute path to the project directory on the server
-  selectedFiles     String[] // List of relative paths of files selected for the prompt
+  path              String   @unique
+  selectedFiles     String[]
   lastFinalRequest  String?  @db.Text
-  ignorePatterns    String[] // Workspace-specific ignore patterns
-  
-  // Project information settings
-  projectInfo       String?  @db.Text // Custom project information for this workspace
-  
+  ignorePatterns    String[]
+  projectInfo       String?  @db.Text
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-
-  // Relations
-  defaultFormatId   String?
-  defaultFormat     Format?  @relation("DefaultFormat", fields: [defaultFormatId], references: [id])
-  defaultRoleId     String?
-  defaultRole       Role?    @relation("DefaultRole", fields: [defaultRoleId], references: [id])
   
-  // New Relation for Prompt Template
-  defaultPromptTemplateId String?
-  defaultPromptTemplate   PromptTemplate? @relation("DefaultPromptTemplate", fields: [defaultPromptTemplateId], references: [id])
+  // Changement ici : on se lie à une Composition, pas à des Role/Format/Template
+  defaultCompositionId String?
+  defaultComposition   PromptComposition? @relation(fields: [defaultCompositionId], references: [id])
 }
 
-// A Format defines how the LLM should structure its response.
-model Format {
-  id           String   @id @default(cuid())
-  name         String   @unique
-  instructions String   @db.Text
-  examples     String   @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  defaultForWorkspaces Workspace[] @relation("DefaultFormat")
-}
-
-// A Role defines the persona the LLM should adopt.
-model Role {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String   @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  defaultForWorkspaces Workspace[] @relation("DefaultRole")
-}
-
-// A PromptTemplate defines the structure of the system prompt.
-model PromptTemplate {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  isDefault Boolean  @default(false)
-  
-  // -- Textes structurés pour chaque section du prompt --
-  // Chaque champ a une valeur par défaut pour un fonctionnement immédiat.
-
-  // Section: ROLE AND EXPERTISE
-  role_intro           String @default("You are an expert software engineer. Your persona:") @db.Text
-
-  // Section: DYNAMIC TASK
-  task_header          String @default("DYNAMIC TASK - USER REQUEST")
-  task_static_intro    String @default("[The following is the specific task you need to accomplish. While the rest of this prompt provides static context and guidelines, this section represents the dynamic user request that changes with each prompt generation.]") @db.Text
-  task_format_reminder String @default("Your response must strictly follow the format specified in the FORMAT INSTRUCTIONS section below. This format is crucial for proper processing of your response.") @db.Text
-
-  // Section: FORMAT INSTRUCTIONS
-  format_header        String @default("FORMAT INSTRUCTIONS")
-  
-  // Section: PROJECT INFORMATION
-  project_info_header  String @default("PROJECT INFORMATION")
-
-  // Section: PROJECT STRUCTURE
-  structure_header     String @default("PROJECT STRUCTURE")
-
-  // Section: CODE CONTENT
-  code_content_header  String @default("CODE CONTENT")
-  file_separator       String @default("---------------------------------------------------------------------------")
-
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  defaultForWorkspaces Workspace[] @relation("DefaultPromptTemplate")
-}
-
-// Global settings for the application.
 model Setting {
-  id                  Int      @id @default(1) // Singleton table
+  id                  Int      @id @default(1)
   globalIgnorePatterns String[]
 }

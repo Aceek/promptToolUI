@@ -1,49 +1,48 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore, Workspace } from '../../store/useAppStore';
-import { workspaceApi, promptTemplateApi } from '../../services/api';
 
 const initialFormState = {
   name: '',
   path: '',
-  defaultFormatId: '',
-  defaultRoleId: '',
-  defaultPromptTemplateId: '',
+  defaultCompositionId: '',
   projectInfo: '',
+  ignorePatterns: [] as string[],
 };
 
 const WorkspacesPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
   const [formData, setFormData] = useState(initialFormState);
-  const [promptTemplates, setPromptTemplates] = useState<any[]>([]);
+  const [ignorePatternsText, setIgnorePatternsText] = useState('');
 
-  const { workspaces, formats, roles, fetchWorkspaces, fetchFormats, fetchRoles } = useAppStore();
+  const { 
+    workspaces, 
+    compositions,
+    isLoading, 
+    error, 
+    loadWorkspaces, 
+    loadCompositions,
+    createWorkspace, 
+    updateWorkspace, 
+    deleteWorkspace 
+  } = useAppStore();
 
   useEffect(() => {
-    fetchWorkspaces();
-    fetchFormats();
-    fetchRoles();
-    fetchPromptTemplates();
-  }, [fetchWorkspaces, fetchFormats, fetchRoles]);
-
-  const fetchPromptTemplates = async () => {
-    try {
-      const data = await promptTemplateApi.getAll();
-      setPromptTemplates(data);
-    } catch (error) {
-      console.error('Error fetching prompt templates:', error);
-    }
-  };
+    loadWorkspaces();
+    loadCompositions();
+  }, [loadWorkspaces, loadCompositions]);
 
   const resetForm = () => {
     setEditingWorkspace(null);
     setFormData(initialFormState);
+    setIgnorePatternsText('');
     setIsFormOpen(false);
   };
 
   const handleNew = () => {
     setEditingWorkspace(null);
     setFormData(initialFormState);
+    setIgnorePatternsText('');
     setIsFormOpen(true);
   };
 
@@ -52,158 +51,246 @@ const WorkspacesPage = () => {
     setFormData({
       name: workspace.name,
       path: workspace.path,
-      defaultFormatId: workspace.defaultFormatId || '',
-      defaultRoleId: workspace.defaultRoleId || '',
-      defaultPromptTemplateId: workspace.defaultPromptTemplateId || '',
+      defaultCompositionId: workspace.defaultCompositionId || '',
       projectInfo: workspace.projectInfo || '',
+      ignorePatterns: workspace.ignorePatterns || [],
     });
+    setIgnorePatternsText((workspace.ignorePatterns || []).join('\n'));
     setIsFormOpen(true);
   };
 
-  const handleSave = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const ignorePatterns = ignorePatternsText
+      .split('\n')
+      .map(pattern => pattern.trim())
+      .filter(pattern => pattern.length > 0);
+
+    const workspaceData = {
+      name: formData.name,
+      path: formData.path,
+      defaultCompositionId: formData.defaultCompositionId || undefined,
+      projectInfo: formData.projectInfo || undefined,
+      ignorePatterns,
+    };
+
     try {
       if (editingWorkspace) {
-        // Update
-        await workspaceApi.update(editingWorkspace.id, {
-          ...formData,
-          defaultFormatId: formData.defaultFormatId || undefined,
-          defaultRoleId: formData.defaultRoleId || undefined,
-          defaultPromptTemplateId: formData.defaultPromptTemplateId || undefined,
-        });
+        await updateWorkspace(editingWorkspace.id, workspaceData);
       } else {
-        // Create
-        await workspaceApi.create({
-          ...formData,
-          defaultFormatId: formData.defaultFormatId || undefined,
-          defaultRoleId: formData.defaultRoleId || undefined,
-          defaultPromptTemplateId: formData.defaultPromptTemplateId || undefined,
-        });
+        await createWorkspace(workspaceData);
       }
       resetForm();
-      fetchWorkspaces();
     } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la sauvegarde de l\'espace de travail');
+      console.error('Failed to save workspace:', error);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet espace de travail ?')) {
-      return;
-    }
-    try {
-      await workspaceApi.delete(id);
-      fetchWorkspaces();
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la suppression de l\'espace de travail');
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cet espace de travail ?')) {
+      await deleteWorkspace(id);
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <div className="card">
-        <div className="card-header">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Espaces de travail</h1>
-              <p className="text-gray-600">Gérez vos projets et leurs configurations</p>
-            </div>
-            <button
-              className="btn-primary"
-              onClick={handleNew}
-            >
-              + Nouvel espace de travail
-            </button>
-          </div>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Gestion des Espaces de Travail</h1>
+          <p className="text-gray-600">Configurez vos projets et leurs paramètres par défaut</p>
         </div>
+        <button
+          onClick={handleNew}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Nouvel Espace de Travail
+        </button>
+      </div>
 
-        <div className="card-content">
-          {/* Formulaire de création/édition */}
-          {isFormOpen && (
-            <div className="bg-gray-50 p-6 rounded-lg mb-6 border border-gray-200">
-              <h3 className="text-xl font-medium text-gray-900 mb-4">
-                {editingWorkspace ? 'Modifier l\'espace de travail' : 'Nouvel espace de travail'}
-              </h3>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Nom</label>
-                    <input type="text" className="input" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Mon projet" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Chemin</label>
-                    <input type="text" className="input" value={formData.path} onChange={(e) => setFormData({ ...formData, path: e.target.value })} placeholder="/chemin/vers/projet" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Format par défaut</label>
-                    <select className="select" value={formData.defaultFormatId} onChange={(e) => setFormData({ ...formData, defaultFormatId: e.target.value })}>
-                      <option value="">Aucun</option>
-                      {formats.map((format) => (<option key={format.id} value={format.id}>{format.name}</option>))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Rôle par défaut</label>
-                    <select className="select" value={formData.defaultRoleId} onChange={(e) => setFormData({ ...formData, defaultRoleId: e.target.value })}>
-                      <option value="">Aucun</option>
-                      {roles.map((role) => (<option key={role.id} value={role.id}>{role.name}</option>))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Template de Prompt par défaut</label>
-                    <select className="select" value={formData.defaultPromptTemplateId} onChange={(e) => setFormData({ ...formData, defaultPromptTemplateId: e.target.value })}>
-                      <option value="">Aucun</option>
-                      {promptTemplates.map((template) => (<option key={template.id} value={template.id}>{template.name} {template.isDefault && '(Par défaut)'}</option>))}
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Informations sur le projet</label>
-                  <textarea className="textarea" rows={5} value={formData.projectInfo} onChange={(e) => setFormData({ ...formData, projectInfo: e.target.value })} placeholder="Décrivez l'objectif du projet, les technologies utilisées, etc." />
-                </div>
-              </div>
-              <div className="flex justify-end space-x-2 mt-6">
-                <button className="btn-secondary" onClick={resetForm}>Annuler</button>
-                <button className="btn-primary" onClick={handleSave} disabled={!formData.name || !formData.path}>
-                  {editingWorkspace ? 'Mettre à jour' : 'Créer'}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+          {error}
+        </div>
+      )}
+
+      {/* Liste des workspaces */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {workspaces.map((workspace) => (
+          <div
+            key={workspace.id}
+            className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">{workspace.name}</h3>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleEdit(workspace)}
+                  className="text-blue-600 hover:text-blue-800 text-sm"
+                >
+                  Modifier
+                </button>
+                <button
+                  onClick={() => handleDelete(workspace.id)}
+                  className="text-red-600 hover:text-red-800 text-sm"
+                >
+                  Supprimer
                 </button>
               </div>
             </div>
-          )}
-
-          {/* Liste des espaces de travail */}
-          <div className="space-y-4">
-            {workspaces.map((workspace) => (
-              <div key={workspace.id} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1 mr-4">
-                    <h3 className="text-lg font-medium text-gray-900">{workspace.name}</h3>
-                    <p className="text-sm text-gray-500 mt-1 font-mono">{workspace.path}</p>
-                    {workspace.projectInfo && (
-                        <p className="text-sm text-gray-600 mt-2 border-l-2 border-gray-200 pl-2 italic">
-                            {workspace.projectInfo.substring(0,150)}{workspace.projectInfo.length > 150 && '...'}
-                        </p>
-                    )}
-                    <div className="flex space-x-4 mt-2 text-sm text-gray-500">
-                      {workspace.defaultFormat && (<span>Format: <span className='font-medium text-gray-700'>{workspace.defaultFormat.name}</span></span>)}
-                      {workspace.defaultRole && (<span>Rôle: <span className='font-medium text-gray-700'>{workspace.defaultRole.name}</span></span>)}
-                      {workspace.defaultPromptTemplate && (<span>Template: <span className='font-medium text-gray-700'>{workspace.defaultPromptTemplate.name}</span></span>)}
-                    </div>
-                  </div>
-                  <div className="flex space-x-2 flex-shrink-0">
-                    <button className="btn-secondary text-sm" onClick={() => handleEdit(workspace)}>Modifier</button>
-                    <button className="btn-danger text-sm" onClick={() => handleDelete(workspace.id)}>Supprimer</button>
-                  </div>
-                </div>
-              </div>
-            ))}
+            
+            <div className="space-y-2 text-sm text-gray-600">
+              <p><span className="font-medium">Chemin:</span> {workspace.path}</p>
+              
+              {workspace.defaultComposition && (
+                <p>
+                  <span className="font-medium">Composition par défaut:</span>{' '}
+                  <span className="text-blue-600">{workspace.defaultComposition.name}</span>
+                </p>
+              )}
+              
+              {workspace.projectInfo && (
+                <p><span className="font-medium">Info projet:</span> {workspace.projectInfo.substring(0, 50)}...</p>
+              )}
+              
+              {workspace.ignorePatterns && workspace.ignorePatterns.length > 0 && (
+                <p><span className="font-medium">Patterns d'exclusion:</span> {workspace.ignorePatterns.length} défini(s)</p>
+              )}
+              
+              <p className="text-xs text-gray-400">
+                Créé le {new Date(workspace.createdAt).toLocaleDateString()}
+              </p>
+            </div>
           </div>
-
-          {workspaces.length === 0 && !isFormOpen && (
-            <div className="text-center py-8 text-gray-500">Aucun espace de travail configuré</div>
-          )}
-        </div>
+        ))}
       </div>
+
+      {workspaces.length === 0 && (
+        <div className="text-center py-12">
+          <div className="text-gray-400 text-6xl mb-4">📁</div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun espace de travail</h3>
+          <p className="text-gray-600 mb-4">Créez votre premier espace de travail pour commencer</p>
+          <button
+            onClick={handleNew}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Créer un espace de travail
+          </button>
+        </div>
+      )}
+
+      {/* Modal de création/édition */}
+      {isFormOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-xl font-bold mb-4">
+                {editingWorkspace ? 'Modifier l\'espace de travail' : 'Nouvel espace de travail'}
+              </h2>
+              
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nom de l'espace de travail
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Chemin du projet
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.path}
+                    onChange={(e) => setFormData({ ...formData, path: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="/chemin/vers/votre/projet"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Composition par défaut (optionnel)
+                  </label>
+                  <select
+                    value={formData.defaultCompositionId}
+                    onChange={(e) => setFormData({ ...formData, defaultCompositionId: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Aucune composition par défaut</option>
+                    {compositions.map((composition) => (
+                      <option key={composition.id} value={composition.id}>
+                        {composition.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Informations du projet (optionnel)
+                  </label>
+                  <textarea
+                    value={formData.projectInfo}
+                    onChange={(e) => setFormData({ ...formData, projectInfo: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="Description du projet, technologies utilisées, etc."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Patterns d'exclusion (un par ligne)
+                  </label>
+                  <textarea
+                    value={ignorePatternsText}
+                    onChange={(e) => setIgnorePatternsText(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={4}
+                    placeholder="node_modules&#10;.git&#10;*.log&#10;dist"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Fichiers et dossiers à exclure de la structure du projet
+                  </p>
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    {editingWorkspace ? 'Mettre à jour' : 'Créer'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

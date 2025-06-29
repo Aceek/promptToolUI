@@ -9,9 +9,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const workspaces = await prisma.workspace.findMany({
         include: {
-          defaultFormat: true,
-          defaultRole: true,
-          defaultPromptTemplate: true
+          defaultComposition: true
         },
         orderBy: {
           updatedAt: 'desc'
@@ -31,9 +29,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
       const workspace = await prisma.workspace.findUnique({
         where: { id },
         include: {
-          defaultFormat: true,
-          defaultRole: true,
-          defaultPromptTemplate: true
+          defaultComposition: true
         }
       });
 
@@ -54,9 +50,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
     Body: {
       name: string;
       path: string;
-      defaultFormatId?: string;
-      defaultRoleId?: string;
-      defaultPromptTemplateId?: string;
+      defaultCompositionId?: string;
       ignorePatterns?: string[];
       projectInfo?: string;
     }
@@ -65,9 +59,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
       const {
         name,
         path,
-        defaultFormatId,
-        defaultRoleId,
-        defaultPromptTemplateId,
+        defaultCompositionId,
         ignorePatterns = [],
         projectInfo
       } = request.body;
@@ -77,25 +69,14 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
         path,
         ignorePatterns,
         selectedFiles: [],
-        projectInfo
+        projectInfo: projectInfo || null,
+        defaultCompositionId: defaultCompositionId || null
       };
-
-      if (defaultFormatId) {
-        data.defaultFormatId = defaultFormatId;
-      }
-      if (defaultRoleId) {
-        data.defaultRoleId = defaultRoleId;
-      }
-      if (defaultPromptTemplateId) {
-        data.defaultPromptTemplateId = defaultPromptTemplateId;
-      }
 
       const workspace = await prisma.workspace.create({
         data,
         include: {
-          defaultFormat: true,
-          defaultRole: true,
-          defaultPromptTemplate: true
+          defaultComposition: true
         }
       });
 
@@ -119,31 +100,25 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
       path?: string;
       selectedFiles?: string[];
       lastFinalRequest?: string;
-      defaultFormatId?: string | null;
-      defaultRoleId?: string | null;
-      defaultPromptTemplateId?: string | null;
+      defaultCompositionId?: string | null;
       ignorePatterns?: string[];
       projectInfo?: string;
     }
   }>('/:id', async (request, reply) => {
     try {
       const { id } = request.params;
-      const { defaultFormatId, defaultRoleId, defaultPromptTemplateId, ...restOfBody } = request.body;
-      
-      const updateData: any = {
-        ...restOfBody,
-        defaultFormatId,
-        defaultRoleId,
-        defaultPromptTemplateId
-      };
+      const updateData = { ...request.body };
+
+      // Convertir les undefined en null pour les champs optionnels
+      if ('defaultCompositionId' in updateData && updateData.defaultCompositionId === undefined) {
+        updateData.defaultCompositionId = null;
+      }
 
       const workspace = await prisma.workspace.update({
         where: { id },
         data: updateData,
         include: {
-          defaultFormat: true,
-          defaultRole: true,
-          defaultPromptTemplate: true
+          defaultComposition: true
         }
       });
 
@@ -175,6 +150,44 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (error) {
       fastify.appLogger.error(`Failed to delete workspace ${request.params.id}: ${error}`);
       return reply.status(500).send({ error: 'Failed to delete workspace' });
+    }
+  });
+
+  // GET /api/workspaces/:id/structure - Get workspace file structure
+  fastify.get<{ Params: { id: string } }>('/:id/structure', async (request, reply) => {
+    try {
+      const { id } = request.params;
+      
+      // Vérifier que le workspace existe
+      const workspace = await prisma.workspace.findUnique({
+        where: { id }
+      });
+
+      if (!workspace) {
+        return reply.status(404).send({ error: 'Workspace not found' });
+      }
+
+      // Appeler l'agent pour obtenir la structure
+      const agentResponse = await fetch(`http://file-system-agent:4001/api/files/structure`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          path: workspace.path,
+          ignorePatterns: workspace.ignorePatterns
+        })
+      });
+
+      if (!agentResponse.ok) {
+        throw new Error(`Agent responded with status ${agentResponse.status}`);
+      }
+
+      const structure = await agentResponse.json();
+      return structure;
+    } catch (error) {
+      fastify.appLogger.error(`Failed to get workspace structure ${request.params.id}: ${error}`);
+      return reply.status(500).send({ error: 'Failed to get workspace structure' });
     }
   });
 };

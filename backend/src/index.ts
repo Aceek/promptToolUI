@@ -3,12 +3,11 @@ import cors from '@fastify/cors';
 import { Server } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
 import { workspaceRoutes } from './routes/workspaces';
-import { formatRoutes } from './routes/formats';
-import { roleRoutes } from './routes/roles';
 import { settingRoutes } from './routes/settings';
 import { promptRoutes } from './routes/prompt';
 import { internalRoutes } from './routes/internal';
-import { promptTemplateRoutes } from './routes/promptTemplates';
+import { blocksRoutes } from './routes/blocks';
+import { compositionsRoutes } from './routes/compositions';
 import { setupWebSocket } from './services/websocket';
 import { logger } from './services/logger';
 
@@ -45,12 +44,13 @@ async function buildServer() {
 
   // Register routes
   await fastify.register(workspaceRoutes, { prefix: '/api/workspaces' });
-  await fastify.register(formatRoutes, { prefix: '/api/formats' });
-  await fastify.register(roleRoutes, { prefix: '/api/roles' });
   await fastify.register(settingRoutes, { prefix: '/api/settings' });
   await fastify.register(promptRoutes, { prefix: '/api/prompt' });
   await fastify.register(internalRoutes, { prefix: '/api/internal' });
-  await fastify.register(promptTemplateRoutes, { prefix: '/api/prompt-templates' });
+  
+  // New modular routes
+  await fastify.register(blocksRoutes, { prefix: '/api/blocks' });
+  await fastify.register(compositionsRoutes, { prefix: '/api/compositions' });
 
   // Health check
   fastify.get('/health', async () => {

@@ -1,22 +1,15 @@
 import * as path from 'path';
 import { detectLanguage } from './structure.js';
 import { AgentService } from './agentService.js';
-import { TemplateService } from './templateService.js'; // IMPORTANT: On ré-importe ce service !
-import { Workspace, Format, Role, PromptTemplate, PrismaClient } from '@prisma/client';
-import { renderString } from 'nunjucks';
-
+import { Workspace, PromptBlock, PromptBlockType, PrismaClient } from '@prisma/client';
 
 export interface PromptGenerationOptions {
   prisma: PrismaClient;
   workspace: Workspace;
-  format?: Format | null;
-  role?: Role | null;
+  orderedBlockIds: string[];
   finalRequest?: string;
   selectedFilePaths?: string[];
   ignorePatterns: string[];
-  includeProjectInfo: boolean;
-  includeStructure: boolean;
-  promptTemplateId?: string | null | undefined;
 }
 
 export interface CodeFile {
@@ -25,82 +18,85 @@ export interface CodeFile {
   lines: Array<{ text: string }>;
 }
 
+/**
+ * Génère un prompt en assemblant des blocs modulaires dans l'ordre spécifié
+ */
 export async function generatePrompt(options: PromptGenerationOptions): Promise<string> {
   const {
     prisma,
     workspace,
-    format,
-    role,
+    orderedBlockIds,
     finalRequest,
     selectedFilePaths = [],
-    ignorePatterns,
-    includeProjectInfo,
-    includeStructure,
-    promptTemplateId
+    ignorePatterns
   } = options;
 
   try {
-    // Étape 1: Charger le template de données depuis la BDD
-    let templateData: PromptTemplate | null = null;
-    if (promptTemplateId) {
-      templateData = await prisma.promptTemplate.findUnique({ where: { id: promptTemplateId } });
+    let finalPromptParts: string[] = [];
+
+    // 1. Fetch tous les blocs nécessaires en une seule requête
+    const blocks = await prisma.promptBlock.findMany({
+      where: { id: { in: orderedBlockIds } },
+    });
+
+    // 2. Créer un Map pour un accès facile et respecter l'ordre
+    const blockMap = new Map(blocks.map((b: PromptBlock) => [b.id, b]));
+
+    // 3. Itérer sur les IDs ordonnés fournis par le client
+    for (const blockId of orderedBlockIds) {
+      const block = blockMap.get(blockId);
+      if (!block) continue;
+
+      let blockContent = '';
+
+      // 4. Le 'switch' est le nouveau moteur modulaire
+      switch (block.type) {
+        case 'STATIC':
+          blockContent = block.content;
+          break;
+
+        case 'DYNAMIC_TASK':
+          // Remplacer un placeholder dans le contenu du bloc par la requête
+          blockContent = block.content.replace('{{dynamic_task}}', finalRequest || '');
+          break;
+
+        case 'PROJECT_STRUCTURE':
+          // Appeler le service existant pour générer la structure
+          blockContent = await generateProjectStructure(workspace.path, ignorePatterns);
+          break;
+
+        case 'SELECTED_FILES_CONTENT':
+          // Appeler le service existant pour lire les fichiers
+          const files = await readSelectedFiles(workspace.path, selectedFilePaths, ignorePatterns);
+          blockContent = formatFilesContent(files);
+          break;
+        
+        case 'PROJECT_INFO':
+          blockContent = formatProjectInfo(workspace);
+          break;
+
+        default:
+          // Type de bloc non reconnu, on prend le contenu tel quel
+          blockContent = block.content;
+          break;
+      }
+
+      if (blockContent.trim()) {
+        finalPromptParts.push(blockContent);
+      }
     }
-    if (!templateData) {
-      templateData = await prisma.promptTemplate.findFirst({ where: { isDefault: true } });
-    }
-    if (!templateData) {
-      throw new Error('No default prompt template found. Please seed the database.');
-    }
 
-    // Read selected files content only if files are selected
-    const codeFiles = selectedFilePaths.length > 0
-      ? await readSelectedFiles(workspace.path, selectedFilePaths, ignorePatterns)
-      : [];
-
-    // Generate project structure only if enabled
-    const projectStructure = includeStructure
-      ? await generateProjectStructure(workspace.path, ignorePatterns)
-      : '';
-
-    // Parse format instructions and examples only if format is provided
-    const formatInstructions = format ? parseFormatInstructions(format.instructions) : [];
-    const formatExamples = format ? parseFormatExamples(format.examples) : [];
-
-    // Étape 2: Préparer le contexte pour le template Nunjucks
-    const templateContext = {
-      // Les morceaux de texte personnalisables
-      ...templateData,
-      // Les données dynamiques de la requête
-      include_role_and_expertise: !!role,
-      include_final_request: !!finalRequest && finalRequest.trim() !== '',
-      include_format_instructions: !!format,
-      include_project_info: includeProjectInfo,
-      include_structure: includeStructure,
-      include_code_content: codeFiles.length > 0,
-      role_description: role?.description || '',
-      final_request: finalRequest || '',
-      format_name: format?.name || '',
-      format_instructions: formatInstructions,
-      format_examples: formatExamples,
-      project_name: workspace.name,
-      workspace_path: workspace.path,
-      project_info: (workspace as any).projectInfo || '',
-      project_structure: projectStructure,
-      code_files: codeFiles
-    };
-    
-    // Étape 3: Utiliser le service de template pour rendre le fichier .njk
-    const templateService = new TemplateService();
-    const mainTemplateString = await templateService.loadTemplate('system-template.njk');
-    const prompt = templateService.renderTemplate(mainTemplateString, templateContext);
-    
-    return prompt;
+    // 5. Assembler le tout avec des séparateurs
+    return finalPromptParts.join('\n\n====================================\n\n');
 
   } catch (error) {
     throw new Error(`Failed to generate prompt: ${error}`);
   }
 }
 
+/**
+ * Lit les fichiers sélectionnés via l'agent
+ */
 async function readSelectedFiles(
   workspacePath: string,
   selectedFilePaths: string[],
@@ -137,6 +133,9 @@ async function readSelectedFiles(
   }
 }
 
+/**
+ * Génère la structure du projet via l'agent
+ */
 async function generateProjectStructure(workspacePath: string, ignorePatterns: string[]): Promise<string> {
   const agentService = new AgentService();
   
@@ -156,6 +155,9 @@ async function generateProjectStructure(workspacePath: string, ignorePatterns: s
   }
 }
 
+/**
+ * Construit le texte de structure à partir des nœuds
+ */
 function buildStructureTextFromNodes(nodes: any[], level: number): string {
   const lines: string[] = [];
   const indent = '  '.repeat(level);
@@ -183,10 +185,44 @@ function buildStructureTextFromNodes(nodes: any[], level: number): string {
   return lines.join('\n');
 }
 
-function parseFormatInstructions(instructions: string): string[] {
-  return instructions.split('\n').filter(line => line.trim()).map(line => line.trim());
+/**
+ * Formate le contenu des fichiers de code
+ */
+function formatFilesContent(files: CodeFile[]): string {
+  const fileParts: string[] = [];
+  
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (!file) continue;
+    
+    const fileContent = file.lines.map(line => line.text).join('\n');
+    
+    let filePart = `File: ${file.path}\nLanguage: ${file.language}\n\n\`\`\`${file.language}\n${fileContent}\n\`\`\``;
+    
+    // Ajouter un séparateur entre les fichiers (sauf pour le dernier)
+    if (i < files.length - 1) {
+      filePart += '\n\n---------------------------------------------------------------------------';
+    }
+    
+    fileParts.push(filePart);
+  }
+  
+  return fileParts.join('\n\n');
 }
 
-function parseFormatExamples(examples: string): string[] {
-  return examples.split('\n').filter(line => line.trim());
+/**
+ * Formate les informations du projet
+ */
+function formatProjectInfo(workspace: Workspace): string {
+  const parts: string[] = [];
+  
+  parts.push(`Project Name: ${workspace.name}`);
+  parts.push(`Workspace Path: ${workspace.path}`);
+  
+  if (workspace.projectInfo && workspace.projectInfo.trim()) {
+    parts.push('');
+    parts.push(workspace.projectInfo);
+  }
+  
+  return parts.join('\n');
 }

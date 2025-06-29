@@ -63,6 +63,29 @@ export class WatchService {
       .on('ready', () => {
       });
   }
+
+  public stopWatching(watchPath: string) {
+    const watcher = activeWatchers.get(watchPath);
+    if (watcher) {
+      watcher.close().then(() => {
+        logger.info(`Successfully closed watcher for path: ${watchPath}`);
+      }).catch((error) => {
+        logger.error(`Error closing watcher for path ${watchPath}: ${error}`);
+      });
+      activeWatchers.delete(watchPath);
+      logger.info(`Watcher removed from active watchers for path: ${watchPath}`);
+    } else {
+      logger.warn(`No active watcher found for path: ${watchPath}`);
+    }
+  }
+
+  public getActiveWatchersCount(): number {
+    return activeWatchers.size;
+  }
+
+  public getActiveWatcherPaths(): string[] {
+    return Array.from(activeWatchers.keys());
+  }
 }
 
 export const watchService = new WatchService();

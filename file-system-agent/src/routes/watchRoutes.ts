@@ -25,4 +25,28 @@ export const watchRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(500).send({ error: 'Failed to start watcher' });
     }
   });
+
+  // Nouvel endpoint pour arrêter la surveillance
+  fastify.post<{
+    Body: {
+      path: string;
+    }
+  }>('/unwatch', async (request, reply) => {
+    try {
+      const { path } = request.body;
+
+      if (!path) {
+        return reply.status(400).send({ error: 'Parameter "path" is required' });
+      }
+
+      watchService.stopWatching(path);
+      fastify.appLogger.info(`Agent stopped watching path: ${path}`);
+      
+      return reply.status(200).send({ message: 'Watch stopped successfully' });
+    } catch (error) {
+      const err = error as Error;
+      fastify.appLogger.error(`Failed to stop watcher: ${err.message}`);
+      return reply.status(500).send({ error: 'Failed to stop watcher' });
+    }
+  });
 };

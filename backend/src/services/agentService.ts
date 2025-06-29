@@ -99,6 +99,58 @@ export class AgentService {
   }
 
   /**
+   * Demande à l'agent d'arrêter la surveillance d'un chemin
+   */
+  async stopWatching(path: string): Promise<void> {
+    try {
+      logger.info(`Requesting agent to stop watching path: ${path}`);
+      const response = await fetch(`${this.agentUrl}/unwatch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ path })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erreur agent (${response.status}): ${errorText}`);
+      }
+
+      logger.success(`Agent stopped watching path: ${path}`);
+    } catch (error) {
+      logger.error(`Failed to stop watching via agent: ${error}`);
+      throw new Error(`Échec de l'arrêt de la surveillance via l'agent: ${error}`);
+    }
+  }
+
+  /**
+   * Demande à l'agent de démarrer la surveillance d'un chemin
+   */
+  async startWatching(path: string, callbackUrl: string, ignorePatterns: string[] = []): Promise<void> {
+    try {
+      logger.info(`Requesting agent to watch path: ${path}`);
+      const response = await fetch(`${this.agentUrl}/watch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ path, callbackUrl, ignorePatterns })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erreur agent (${response.status}): ${errorText}`);
+      }
+
+      logger.success(`Agent started watching path: ${path}`);
+    } catch (error) {
+      logger.error(`Failed to start watching via agent: ${error}`);
+      throw new Error(`Échec du démarrage de la surveillance via l'agent: ${error}`);
+    }
+  }
+
+  /**
    * Obtient l'URL de l'agent configurée
    */
   getAgentUrl(): string {

@@ -371,8 +371,12 @@ const MainPage = () => {
     </div>
   );
 
-  // Grouper les blocs par catégorie
-  const groupedBlocks = blocks.reduce((acc, block) => {
+  // Séparer les blocs système des blocs personnalisés
+  const systemBlocks = blocks.filter(b => b.isSystemBlock);
+  const customBlocks = blocks.filter(b => !b.isSystemBlock);
+  
+  // Grouper les blocs personnalisés par catégorie
+  const groupedCustomBlocks = customBlocks.reduce((acc, block) => {
     const category = block.category || 'Sans catégorie';
     if (!acc[category]) {
       acc[category] = [];
@@ -380,6 +384,12 @@ const MainPage = () => {
     acc[category].push(block);
     return acc;
   }, {} as Record<string, PromptBlock[]>);
+
+  // Créer l'objet final avec les blocs système en premier
+  const groupedBlocks = {
+    ...(systemBlocks.length > 0 && { 'Blocs Fondamentaux': systemBlocks }),
+    ...groupedCustomBlocks
+  };
 
   if (isLoading) {
     return (
@@ -463,10 +473,24 @@ const MainPage = () => {
 
             {/* Blocs par catégorie */}
             <div className="space-y-4">
-              {Object.entries(groupedBlocks).map(([category, categoryBlocks]) => (
-                <div key={category}>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">{category}</h3>
-                  <div className="space-y-1">
+              {Object.entries(groupedBlocks).map(([category, categoryBlocks]) => {
+                const isSystemCategory = category === 'Blocs Fondamentaux';
+                return (
+                  <div key={category}>
+                    <div className="flex items-center space-x-2 mb-2">
+                      {isSystemCategory && <span className="text-blue-600">⚙️</span>}
+                      <h3 className={`text-sm font-medium ${
+                        isSystemCategory ? 'text-blue-700' : 'text-gray-700'
+                      }`}>
+                        {category}
+                      </h3>
+                      {isSystemCategory && (
+                        <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                          Système
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1">
                     {categoryBlocks.map((block) => (
                       <div
                         key={block.id}
@@ -490,7 +514,8 @@ const MainPage = () => {
                     ))}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -531,19 +556,20 @@ const MainPage = () => {
             {selectedWorkspace && (
               <div className="mt-6 space-y-4">
 
-                {/* Demande finale - Ne s'affiche que si aucun bloc DYNAMIC_TASK n'est présent */}
+                {/* Guidage contextuel pour ajouter une tâche */}
                 {!hasDynamicTaskBlock && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Demande finale
-                    </label>
-                    <textarea
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      rows={3}
-                      placeholder="Décrivez ce que vous voulez que l'IA fasse..."
-                      value={finalRequest}
-                      onChange={(e) => setFinalRequest(e.target.value)}
-                    />
+                  <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+                    <div className="flex">
+                      <div className="py-1">
+                        <svg className="h-6 w-6 text-blue-500 mr-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-bold text-blue-800">Comment ajouter votre tâche ?</p>
+                        <p className="text-sm text-blue-700">Pour spécifier votre demande, ajoutez un bloc "Tâche Utilisateur" (ou un autre bloc de type Tâche Dynamique) depuis la bibliothèque à votre composition.</p>
+                      </div>
+                    </div>
                   </div>
                 )}
 

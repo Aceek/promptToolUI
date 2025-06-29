@@ -43,7 +43,7 @@ async function main() {
       }
     }),
 
-    // Bloc de tâche dynamique
+    // Bloc de tâche dynamique (SYSTEM BLOCK)
     prisma.promptBlock.create({
       data: {
         name: 'Tâche Utilisateur',
@@ -52,8 +52,9 @@ async function main() {
           suffix: "Please analyze the provided code and project structure to accomplish this task effectively."
         }),
         type: PromptBlockType.DYNAMIC_TASK,
-        category: 'Tâche',
-        color: '#EF4444'
+        category: 'Blocs Fondamentaux',
+        color: '#EF4444',
+        isSystemBlock: true
       }
     }),
 
@@ -94,7 +95,7 @@ async function main() {
         name: 'Informations du Projet',
         content: 'PROJECT INFORMATION:\n\nThe following information describes the current project context.',
         type: PromptBlockType.PROJECT_INFO,
-        category: 'Contexte',
+        category: 'Blocs Fondamentaux',
         color: '#8B5CF6',
         isSystemBlock: true
       }
@@ -105,7 +106,7 @@ async function main() {
         name: 'Structure du Projet',
         content: 'PROJECT STRUCTURE:\n\nHere is the current file and directory structure of the project.',
         type: PromptBlockType.PROJECT_STRUCTURE,
-        category: 'Contexte',
+        category: 'Blocs Fondamentaux',
         color: '#8B5CF6',
         isSystemBlock: true
       }
@@ -116,7 +117,7 @@ async function main() {
         name: 'Fichiers Sélectionnés',
         content: 'SELECTED FILES CONTENT:\n\nThe following files have been selected for analysis.',
         type: PromptBlockType.SELECTED_FILES_CONTENT,
-        category: 'Contexte',
+        category: 'Blocs Fondamentaux',
         color: '#8B5CF6',
         isSystemBlock: true
       }

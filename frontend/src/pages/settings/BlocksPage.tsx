@@ -171,7 +171,12 @@ export default function BlocksPage() {
     }
   };
 
-  const groupedBlocks = blocks.reduce((acc, block) => {
+  // Séparer les blocs système des blocs personnalisés
+  const systemBlocks = blocks.filter(b => b.isSystemBlock);
+  const customBlocks = blocks.filter(b => !b.isSystemBlock);
+  
+  // Grouper les blocs personnalisés par catégorie
+  const groupedCustomBlocks = customBlocks.reduce((acc, block) => {
     const category = block.category || 'Sans catégorie';
     if (!acc[category]) {
       acc[category] = [];
@@ -179,6 +184,12 @@ export default function BlocksPage() {
     acc[category].push(block);
     return acc;
   }, {} as Record<string, PromptBlock[]>);
+
+  // Créer l'objet final avec les blocs système en premier
+  const groupedBlocks = {
+    ...(systemBlocks.length > 0 && { 'Blocs Fondamentaux': systemBlocks }),
+    ...groupedCustomBlocks
+  };
 
   if (isLoading) {
     return (
@@ -210,12 +221,40 @@ export default function BlocksPage() {
       )}
 
       <div className="space-y-6">
-        {Object.entries(groupedBlocks).map(([category, categoryBlocks]) => (
-          <div key={category} className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">{category}</h2>
-              <p className="text-sm text-gray-600">{categoryBlocks.length} bloc(s)</p>
-            </div>
+        {Object.entries(groupedBlocks).map(([category, categoryBlocks]) => {
+          const isSystemCategory = category === 'Blocs Fondamentaux';
+          return (
+            <div
+              key={category}
+              className={`rounded-lg shadow ${
+                isSystemCategory
+                  ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200'
+                  : 'bg-white'
+              }`}
+            >
+              <div className={`px-6 py-4 border-b ${
+                isSystemCategory ? 'border-blue-200' : 'border-gray-200'
+              }`}>
+                <div className="flex items-center space-x-2">
+                  {isSystemCategory && <span className="text-blue-600">⚙️</span>}
+                  <h2 className={`text-lg font-semibold ${
+                    isSystemCategory ? 'text-blue-900' : 'text-gray-900'
+                  }`}>
+                    {category}
+                  </h2>
+                  {isSystemCategory && (
+                    <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                      Système
+                    </span>
+                  )}
+                </div>
+                <p className={`text-sm ${
+                  isSystemCategory ? 'text-blue-700' : 'text-gray-600'
+                }`}>
+                  {categoryBlocks.length} bloc(s)
+                  {isSystemCategory && ' - Blocs essentiels non supprimables'}
+                </p>
+              </div>
             <div className="p-6">
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {categoryBlocks.map((block) => (
@@ -283,7 +322,8 @@ export default function BlocksPage() {
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Modal de création/édition */}

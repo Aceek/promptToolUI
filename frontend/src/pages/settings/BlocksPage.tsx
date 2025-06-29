@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { PromptBlock } from '../../store/useAppStore';
+import { RESERVED_COLORS, DYNAMIC_TASK_BLOCK_COLOR } from '../../constants';
 
 const BLOCK_TYPES = [
   { value: 'STATIC', label: 'Statique', description: 'Bloc de texte simple' },
@@ -87,7 +88,8 @@ export default function BlocksPage() {
       setFormData(prev => ({
         ...prev,
         type: 'DYNAMIC_TASK',
-        category: 'Tâche'
+        category: 'Tâche',
+        color: DYNAMIC_TASK_BLOCK_COLOR
       }));
     } else {
       setFormData(prev => ({
@@ -280,7 +282,7 @@ export default function BlocksPage() {
                         >
                           Modifier
                         </button>
-                        {!block.isSystemBlock && (
+                        {block.systemBehavior !== 'INDELETABLE' && (
                           <button
                             onClick={() => handleDelete(block.id)}
                             className="text-red-600 hover:text-red-800 text-sm"
@@ -406,7 +408,8 @@ export default function BlocksPage() {
                       </div>
                     )}
 
-                    {!editingBlock?.isSystemBlock && (
+                    {/* Type selector hidden during creation */}
+                    {editingBlock && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Type de bloc
@@ -430,9 +433,11 @@ export default function BlocksPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Catégorie
                       </label>
-                      {formData.type === 'DYNAMIC_TASK' ? (
-                        <div className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 text-gray-500">
-                          Blocs Fondamentaux
+                      {creationType === 'dynamic_task' ? (
+                        <div className="hidden">
+                          <div className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 text-gray-500">
+                            Blocs Fondamentaux
+                          </div>
                         </div>
                       ) : (
                         <input
@@ -449,19 +454,37 @@ export default function BlocksPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Couleur
                       </label>
-                      <div className="flex space-x-2">
-                        {PREDEFINED_COLORS.map((color) => (
-                          <button
-                            key={color}
-                            type="button"
-                            onClick={() => setFormData({ ...formData, color })}
-                            className={`w-8 h-8 rounded-full border-2 ${
-                              formData.color === color ? 'border-gray-800' : 'border-gray-300'
-                            }`}
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
+                      {creationType === 'dynamic_task' ? (
+                        <div className="hidden">
+                          <div className="flex space-x-2">
+                            {PREDEFINED_COLORS.map((color) => (
+                              <button
+                                key={color}
+                                type="button"
+                                onClick={() => setFormData({ ...formData, color })}
+                                className={`w-8 h-8 rounded-full border-2 ${
+                                  formData.color === color ? 'border-gray-800' : 'border-gray-300'
+                                }`}
+                                style={{ backgroundColor: color }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex space-x-2">
+                          {((editingBlock && editingBlock.systemBehavior !== 'NONE') ? PREDEFINED_COLORS : PREDEFINED_COLORS.filter(c => !RESERVED_COLORS.includes(c))).map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              onClick={() => setFormData({ ...formData, color })}
+                              className={`w-8 h-8 rounded-full border-2 ${
+                                formData.color === color ? 'border-gray-800' : 'border-gray-300'
+                              }`}
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {!editingBlock?.isSystemBlock && (

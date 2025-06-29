@@ -25,7 +25,7 @@ model PromptBlock {
   type      PromptBlockType @default(STATIC)
   
   // Nouveau champ pour distinguer les blocs système des blocs personnalisés
-  isSystemBlock Boolean      @default(false)
+  systemBehavior SystemBlockBehavior @default(NONE)
   
   // Pour l'organisation dans l'UI
   category  String?         // Catégorie définie par l'utilisateur (ex: "Rôles", "Instructions")
@@ -46,6 +46,13 @@ enum PromptBlockType {
   SELECTED_FILES_CONTENT   // Un bloc qui injectera le contenu des fichiers sélectionnés.
   PROJECT_INFO             // Un bloc qui injectera les informations du Workspace.
   // On pourra en ajouter d'autres plus tard ! (ex: GIT_DIFF, etc.)
+}
+
+// Enum pour le comportement des blocs système
+enum SystemBlockBehavior {
+  NONE          // Bloc personnalisé standard
+  SYSTEM        // Bloc système standard (supprimable, ex: DYNAMIC_TASK)
+  INDELETABLE   // Bloc système fondamental (non supprimable)
 }
 
 // Un assemblage de blocs sauvegardé par l'utilisateur.

@@ -77,6 +77,14 @@ export const blocksRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(403).send({ error: `The category "${SYSTEM_CATEGORY_NAME}" is reserved for system blocks.` });
       }
 
+      // Validation des couleurs réservées
+      const SYSTEM_BLOCK_COLOR = '#8B5CF6';
+      const DYNAMIC_TASK_BLOCK_COLOR = '#EF4444';
+      const RESERVED_COLORS = [SYSTEM_BLOCK_COLOR, DYNAMIC_TASK_BLOCK_COLOR];
+      if (color && RESERVED_COLORS.includes(color) && type !== PromptBlockType.DYNAMIC_TASK) {
+        return reply.status(403).send({ error: 'This color is reserved for system blocks.' });
+      }
+
       let dataToCreate: any = {
         name,
         content,
@@ -87,7 +95,8 @@ export const blocksRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (type === PromptBlockType.DYNAMIC_TASK) {
         dataToCreate.category = SYSTEM_CATEGORY_NAME;
-        dataToCreate.isSystemBlock = true;
+        dataToCreate.systemBehavior = 'SYSTEM';
+        dataToCreate.color = DYNAMIC_TASK_BLOCK_COLOR;
       }
 
       const block = await prisma.promptBlock.create({
@@ -130,12 +139,20 @@ export const blocksRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Block not found' });
       }
 
-      if (!existingBlock.isSystemBlock && category?.trim() === SYSTEM_CATEGORY_NAME) {
+      if (existingBlock.systemBehavior === 'NONE' && category?.trim() === SYSTEM_CATEGORY_NAME) {
         return reply.status(403).send({ error: `The category "${SYSTEM_CATEGORY_NAME}" is reserved for system blocks.` });
       }
 
-      if (existingBlock.isSystemBlock && type && type !== existingBlock.type) {
+      if (existingBlock.systemBehavior !== 'NONE' && type && type !== existingBlock.type) {
         return reply.status(403).send({ error: "Cannot change the type of a system block." });
+      }
+
+      // Validation des couleurs réservées
+      const SYSTEM_BLOCK_COLOR = '#8B5CF6';
+      const DYNAMIC_TASK_BLOCK_COLOR = '#EF4444';
+      const RESERVED_COLORS = [SYSTEM_BLOCK_COLOR, DYNAMIC_TASK_BLOCK_COLOR];
+      if (color && RESERVED_COLORS.includes(color) && existingBlock.systemBehavior === 'NONE') {
+        return reply.status(403).send({ error: 'This color is reserved for system blocks.' });
       }
 
       const updatedBlock = await prisma.promptBlock.update({
@@ -173,6 +190,10 @@ export const blocksRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (!existingBlock) {
         return reply.status(404).send({ error: 'Block not found' });
+      }
+
+      if (existingBlock.systemBehavior === 'INDELETABLE') {
+        return reply.status(403).send({ error: 'This core system block cannot be deleted.' });
       }
 
       await prisma.promptBlock.delete({

@@ -54,7 +54,7 @@ async function main() {
         type: PromptBlockType.DYNAMIC_TASK,
         category: 'Blocs Fondamentaux',
         color: '#EF4444',
-        isSystemBlock: true
+        systemBehavior: 'SYSTEM'
       }
     }),
 
@@ -97,7 +97,7 @@ async function main() {
         type: PromptBlockType.PROJECT_INFO,
         category: 'Blocs Fondamentaux',
         color: '#8B5CF6',
-        isSystemBlock: true
+        systemBehavior: 'INDELETABLE'
       }
     }),
 
@@ -108,7 +108,7 @@ async function main() {
         type: PromptBlockType.PROJECT_STRUCTURE,
         category: 'Blocs Fondamentaux',
         color: '#8B5CF6',
-        isSystemBlock: true
+        systemBehavior: 'INDELETABLE'
       }
     }),
 
@@ -119,7 +119,7 @@ async function main() {
         type: PromptBlockType.SELECTED_FILES_CONTENT,
         category: 'Blocs Fondamentaux',
         color: '#8B5CF6',
-        isSystemBlock: true
+        systemBehavior: 'INDELETABLE'
       }
     }),
 

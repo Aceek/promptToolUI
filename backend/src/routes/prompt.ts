@@ -2,6 +2,12 @@ import { FastifyPluginAsync } from 'fastify';
 import { PrismaClient } from '@prisma/client';
 import { generateStructure } from '../services/structure';
 import { generatePrompt } from '../services/prompt';
+import {
+  generatePromptBodySchema,
+  generateFromCompositionBodySchema,
+  GeneratePromptBody,
+  GenerateFromCompositionBody,
+} from '../schemas/prompt.schema';
 
 export const promptRoutes: FastifyPluginAsync = async (fastify) => {
   const prisma: PrismaClient = fastify.prisma;
@@ -43,14 +49,7 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /api/prompt/generate - Generate final prompt using modular blocks
-  fastify.post<{
-    Body: {
-      workspaceId: string;
-      orderedBlockIds: string[]; // Liste ordonnée des IDs de blocs à assembler
-      finalRequest?: string;
-      selectedFilePaths?: string[];
-    }
-  }>('/generate', async (request, reply) => {
+  fastify.post<{ Body: GeneratePromptBody }>('/generate', { schema: { body: generatePromptBodySchema } }, async (request, reply) => {
     try {
       const {
         workspaceId,
@@ -136,14 +135,7 @@ export const promptRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /api/prompt/generate-from-composition - Generate prompt from a saved composition
-  fastify.post<{
-    Body: {
-      workspaceId: string;
-      compositionId: string;
-      finalRequest?: string;
-      selectedFilePaths?: string[];
-    }
-  }>('/generate-from-composition', async (request, reply) => {
+  fastify.post<{ Body: GenerateFromCompositionBody }>('/generate-from-composition', { schema: { body: generateFromCompositionBodySchema } }, async (request, reply) => {
     try {
       const { 
         workspaceId, 

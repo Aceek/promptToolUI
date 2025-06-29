@@ -64,6 +64,16 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
         projectInfo
       } = request.body;
 
+      // Vérifier l'unicité du chemin
+      const existingByPath = await prisma.workspace.findUnique({
+        where: { path }
+      });
+      if (existingByPath) {
+        return reply.status(409).send({
+          error: "Un espace de travail avec ce chemin existe déjà."
+        });
+      }
+
       const data: any = {
         name,
         path,
@@ -105,6 +115,18 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const { id } = request.params;
       const updateData: any = { ...request.body };
+
+      // Vérifier l'unicité du chemin si fourni
+      if (updateData.path) {
+        const existingByPath = await prisma.workspace.findUnique({
+          where: { path: updateData.path }
+        });
+        if (existingByPath && existingByPath.id !== id) {
+          return reply.status(409).send({
+            error: "Un espace de travail avec ce chemin existe déjà."
+          });
+        }
+      }
 
       // Convertir les undefined en null pour les champs optionnels
       if ('defaultCompositionId' in updateData && updateData.defaultCompositionId === undefined) {

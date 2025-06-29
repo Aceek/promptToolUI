@@ -453,11 +453,16 @@ export default function BlocksPage() {
                         Catégorie
                       </label>
                       {creationType === 'dynamic_task' ? (
-                        <div className="hidden">
+                        <>
+                          <input
+                            type="hidden"
+                            {...register('category')}
+                            value="Blocs Fondamentaux"
+                          />
                           <div className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 text-gray-500">
                             Blocs Fondamentaux
                           </div>
-                        </div>
+                        </>
                       ) : (
                         <input
                           type="text"
@@ -473,21 +478,20 @@ export default function BlocksPage() {
                         Couleur
                       </label>
                       {creationType === 'dynamic_task' ? (
-                        <div className="hidden">
-                          <div className="flex space-x-2">
-                            {PREDEFINED_COLORS.map((color) => (
-                              <button
-                                key={color}
-                                type="button"
-                                onClick={() => setValue('color', color)}
-                                className={`w-8 h-8 rounded-full border-2 ${
-                                  watchedColor === color ? 'border-gray-800' : 'border-gray-300'
-                                }`}
-                                style={{ backgroundColor: color }}
-                              />
-                            ))}
+                        <>
+                          <input
+                            type="hidden"
+                            {...register('color')}
+                            value={DYNAMIC_TASK_BLOCK_COLOR}
+                          />
+                          <div className="flex items-center space-x-2">
+                            <div
+                              className="w-8 h-8 rounded-full border-2 border-gray-300"
+                              style={{ backgroundColor: DYNAMIC_TASK_BLOCK_COLOR }}
+                            />
+                            <span className="text-sm text-gray-600">Couleur automatique pour les blocs de tâche</span>
                           </div>
-                        </div>
+                        </>
                       ) : (
                         <div className="flex space-x-2">
                           {((editingBlock && editingBlock.systemBehavior !== 'NONE') ? PREDEFINED_COLORS : PREDEFINED_COLORS.filter(c => !RESERVED_COLORS.includes(c))).map((color) => (

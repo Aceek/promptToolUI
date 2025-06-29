@@ -85,6 +85,16 @@ export const compositionsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const { name, blockIds } = request.body;
 
+      // Vérifier l'unicité du nom
+      const existingByName = await prisma.promptComposition.findUnique({
+        where: { name }
+      });
+      if (existingByName) {
+        return reply.status(409).send({
+          error: "Une composition avec ce nom existe déjà."
+        });
+      }
+
       // Vérifier que tous les blocs existent
       const existingBlocks = await prisma.promptBlock.findMany({
         where: { id: { in: blockIds } }
@@ -150,6 +160,18 @@ export const compositionsRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (!existingComposition) {
         return reply.status(404).send({ error: 'Composition not found' });
+      }
+
+      // Vérifier l'unicité du nom si fourni
+      if (name) {
+        const existingByName = await prisma.promptComposition.findUnique({
+          where: { name }
+        });
+        if (existingByName && existingByName.id !== id) {
+          return reply.status(409).send({
+            error: "Une composition avec ce nom existe déjà."
+          });
+        }
       }
 
       // Si blockIds est fourni, vérifier que tous les blocs existent

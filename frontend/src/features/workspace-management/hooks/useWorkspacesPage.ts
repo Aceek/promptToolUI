@@ -14,7 +14,7 @@ export const useWorkspacesPage = () => {
     compositions,
     isLoading,
     error,
-    loadWorkspaces,
+    fetchWorkspaces,
     loadCompositions,
     createWorkspace,
     updateWorkspace,
@@ -42,9 +42,9 @@ export const useWorkspacesPage = () => {
 
   // Chargement initial des données
   useEffect(() => {
-    loadWorkspaces();
+    fetchWorkspaces();
     loadCompositions();
-  }, [loadWorkspaces, loadCompositions]);
+  }, [fetchWorkspaces, loadCompositions]);
 
   // Réinitialisation et fermeture du formulaire
   const resetForm = () => {

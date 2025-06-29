@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore, FileNode, PromptBlock } from '../../../store/useAppStore';
-import { workspaceApi } from '../../../services/api';
+import { workspaceApi } from '../../../api';
 import { websocketService } from '../../../services/websocket';
 import { toastService } from '../../../services/toastService';
 

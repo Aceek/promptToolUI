@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { workspaceApi, blockApi, compositionApi, settingsApi } from '../api';
+import { workspaceApi, blockApi, compositionApi, settingsApi, promptApi } from '../api';
 
 // Nouveaux types pour l'architecture modulaire
 export interface PromptBlock {
@@ -86,8 +86,6 @@ interface AppState {
   
   // État de l'interface
   selectedFiles: string[];
-  finalRequest: string;
-  generatedPrompt: string;
   isLoading: boolean;
   error: string | null;
   
@@ -96,7 +94,6 @@ interface AppState {
   
   // Actions pour les workspaces
   fetchWorkspaces: () => Promise<void>;
-  loadWorkspaces: () => Promise<void>; // Alias pour compatibilité
   setSelectedWorkspace: (workspace: Workspace | null) => void;
   createWorkspace: (data: { name: string; path: string; defaultCompositionId?: string; ignorePatterns?: string[]; projectInfo?: string }) => Promise<void>;
   updateWorkspace: (id: string, data: Partial<Workspace>) => Promise<void>;
@@ -125,9 +122,7 @@ interface AppState {
   
   // Actions pour la génération de prompt
   setSelectedFiles: (files: string[]) => void;
-  setFinalRequest: (request: string) => void;
   generatePrompt: (data: { workspaceId: string; orderedBlockIds: string[]; finalRequest?: string; selectedFilePaths?: string[] }) => Promise<any>;
-  generatePromptFromComposition: (compositionId: string) => Promise<void>;
   
   // Actions utilitaires
   setLoading: (loading: boolean) => void;
@@ -155,8 +150,6 @@ export const useAppStore = create<AppState>()(
       currentComposition: [],
       settings: null,
       selectedFiles: [],
-      finalRequest: '',
-      generatedPrompt: '',
       isLoading: false,
       error: null,
       
@@ -180,15 +173,10 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      loadWorkspaces: async () => {
-        return get().fetchWorkspaces();
-      },
-
       setSelectedWorkspace: (workspace) => {
         set({
           selectedWorkspace: workspace,
-          selectedFiles: workspace?.selectedFiles || [],
-          finalRequest: workspace?.lastFinalRequest || ''
+          selectedFiles: workspace?.selectedFiles || []
         });
       },
 
@@ -382,42 +370,15 @@ export const useAppStore = create<AppState>()(
         set({ selectedFiles: files });
       },
 
-      setFinalRequest: (request) => {
-        set({ finalRequest: request });
-      },
-
-
       generatePrompt: async (data: { workspaceId: string; orderedBlockIds: string[]; finalRequest?: string; selectedFilePaths?: string[] }) => {
         try {
           set({ isLoading: true, error: null });
           
           const result = await promptApi.generate(data);
-          set({ generatedPrompt: result.prompt, isLoading: false });
+          set({ isLoading: false });
           return result;
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to generate prompt', isLoading: false });
-          throw error;
-        }
-      },
-
-      generatePromptFromComposition: async (compositionId) => {
-        const { selectedWorkspace, finalRequest, selectedFiles } = get();
-        if (!selectedWorkspace) {
-          set({ error: 'Workspace is required' });
-          return;
-        }
-
-        try {
-          set({ isLoading: true, error: null });
-          const result = await promptApi.generateFromComposition({
-            workspaceId: selectedWorkspace.id,
-            compositionId,
-            finalRequest,
-            selectedFilePaths: selectedFiles,
-          });
-          set({ generatedPrompt: result.prompt, isLoading: false });
-        } catch (error) {
-          set({ error: error instanceof Error ? error.message : 'Failed to generate prompt from composition', isLoading: false });
           throw error;
         }
       },
@@ -478,13 +439,9 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         selectedWorkspace: state.selectedWorkspace,
         selectedFiles: state.selectedFiles,
-        finalRequest: state.finalRequest,
         currentComposition: state.currentComposition,
         settings: state.settings,
       }),
     }
   )
 );
-
-// Import du promptApi pour éviter les dépendances circulaires
-import { promptApi } from '../api';
